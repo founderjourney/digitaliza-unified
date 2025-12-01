@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
 interface AdminLoginProps {
-  restaurantPassword: string
+  slug: string
   onLogin: () => void
   onCancel: () => void
   restaurantName: string
@@ -13,7 +13,7 @@ interface AdminLoginProps {
 }
 
 export default function AdminLogin({
-  restaurantPassword,
+  slug,
   onLogin,
   onCancel,
   restaurantName,
@@ -58,17 +58,26 @@ export default function AdminLogin({
     setIsLoading(true)
     setError('')
 
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 500))
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, password }),
+      })
 
-    if (password === restaurantPassword) {
-      onLogin()
-    } else {
-      setError('Contraseña incorrecta')
-      setPassword('')
+      const data = await response.json()
+
+      if (response.ok) {
+        onLogin()
+      } else {
+        setError(data.error || 'Contraseña incorrecta')
+        setPassword('')
+      }
+    } catch {
+      setError('Error de conexión')
+    } finally {
+      setIsLoading(false)
     }
-
-    setIsLoading(false)
   }
 
   const themeEmoji = {
