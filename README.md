@@ -5,15 +5,20 @@ Sistema unificado para la creacion y gestion de menus digitales para restaurante
 ## Estado del Proyecto
 
 ```
-PROGRESO: 97% (28/29 tareas completadas)
+PROGRESO: 100% - MVP COMPLETADO
 
 DEV1 - Backend Core:    8/8  (100%)
 DEV2 - Backend APIs:    6/6  (100%)
 DEV3 - Frontend Core:   9/9  (100%)
-DEV4 - Pages + Deploy:  5/6  (83%)
-
-PENDIENTE: Deploy a produccion (Vercel + Neon)
+DEV4 - Pages + Deploy:  6/6  (100%)
 ```
+
+## Demo en Produccion
+
+- **App:** https://digitaliza-unified.vercel.app
+- **Menu ejemplo:** https://digitaliza-unified.vercel.app/nombre
+- **Panel Admin:** https://digitaliza-unified.vercel.app/nombre/admin
+- **Repositorio:** https://github.com/founderjourney/digitaliza-unified
 
 ## Tecnologias
 
@@ -123,7 +128,7 @@ src/
 - [x] Integracion WhatsApp (pedidos y reservas)
 - [x] Generador de QR con descarga PNG
 - [x] Panel de administracion completo
-- [ ] Deploy en produccion
+- [x] Deploy en produccion (Vercel + Neon)
 
 ## Modelo de Datos
 
@@ -217,5 +222,5 @@ Privado - Todos los derechos reservados
 
 ---
 
-**Ultima actualizacion:** 2025-11-30
-**Version:** MVP 1.0
+**Ultima actualizacion:** 2025-12-01
+**Version:** MVP 1.0 - Produccion
