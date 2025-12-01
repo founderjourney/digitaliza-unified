@@ -1,0 +1,87 @@
+// prisma/schema.prisma - VERSIÓN SIMPLIFICADA KISS (75 líneas)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ══════════════════════════════════════════════════════════════
+// MODELO 1: RESTAURANT (Negocio)
+// ══════════════════════════════════════════════════════════════
+model Restaurant {
+  id          String   @id @default(cuid())
+  slug        String   @unique    // URL: /mi-restaurante
+
+  // Datos del negocio
+  name        String
+  phone       String
+  whatsapp    String
+  email       String?
+  address     String
+  description String?
+  logoUrl     String?
+
+  // Configuración
+  theme       String   @default("general")  // italian, japanese, coffee, barber
+  hours       String   @default("{}")       // JSON string: {"mon":"09:00-22:00",...}
+
+  // Seguridad
+  password    String   // Hash bcrypt
+
+  // Estado
+  isActive    Boolean  @default(true)
+
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relaciones
+  items       MenuItem[]
+  sessions    Session[]
+}
+
+// ══════════════════════════════════════════════════════════════
+// MODELO 2: MENUITEM (Productos/Servicios)
+// ══════════════════════════════════════════════════════════════
+model MenuItem {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  price       Decimal
+  imageUrl    String?
+  category    String   // "pizzas", "pastas", "cortes", etc.
+  available   Boolean  @default(true)
+  order       Int      @default(0)
+
+  // Relación
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([restaurantId])
+  @@index([category])
+}
+
+// ══════════════════════════════════════════════════════════════
+// MODELO 3: SESSION (Autenticación)
+// ══════════════════════════════════════════════════════════════
+model Session {
+  id           String   @id @default(cuid())
+  token        String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  // Relación
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([restaurantId])
+}

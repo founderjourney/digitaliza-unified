@@ -12,6 +12,20 @@ const config: Config = {
         background: "var(--background)",
         foreground: "var(--foreground)",
       },
+      keyframes: {
+        "slide-in-from-bottom": {
+          "0%": { transform: "translateY(100%)" },
+          "100%": { transform: "translateY(0)" },
+        },
+        "zoom-in-95": {
+          "0%": { transform: "scale(0.95)", opacity: "0" },
+          "100%": { transform: "scale(1)", opacity: "1" },
+        },
+      },
+      animation: {
+        "slide-in-from-bottom": "slide-in-from-bottom 0.2s ease-out",
+        "zoom-in-95": "zoom-in-95 0.2s ease-out",
+      },
     },
   },
   plugins: [],
