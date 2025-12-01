@@ -519,7 +519,7 @@ export default function JapaneseTemplate({ restaurant, menuItems, isAdmin = fals
       <AnimatePresence>
         {showAdminLogin && (
           <AdminLogin
-            restaurantPassword={restaurant.password || ''}
+            slug={restaurant.slug}
             onLogin={handleAdminLogin}
             onCancel={() => setShowAdminLogin(false)}
             restaurantName={restaurant.name}
