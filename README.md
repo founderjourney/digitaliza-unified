@@ -13,11 +13,31 @@ DEV3 - Frontend Core:   9/9  (100%)
 DEV4 - Pages + Deploy:  6/6  (100%)
 ```
 
-## Demo en Produccion
+## Demos en Produccion
 
-- **App:** https://digitaliza-unified.vercel.app
-- **Menu ejemplo:** https://digitaliza-unified.vercel.app/nombre
-- **Panel Admin:** https://digitaliza-unified.vercel.app/nombre/admin
+### 🌐 Landing Page
+- **App Principal:** https://digitaliza-unified.vercel.app
+
+### 📋 Restaurantes Demo (Menús Públicos)
+Explora estos ejemplos para ver cómo se ve un menú en cada tema:
+
+| Restaurante | Tema | URL |
+|------------|------|-----|
+| 🇮🇹 Ristorante Italiano | Italian | https://digitaliza-unified.vercel.app/ristorante-demo |
+| 🇯🇵 Sakura Sushi Bar | Japanese | https://digitaliza-unified.vercel.app/sakura-sushi-demo |
+| 🇲🇽 El Mexicano Feliz | Mexican | https://digitaliza-unified.vercel.app/el-mexicano-feliz-demo |
+| ☕ The Coffee House | Coffee | https://digitaliza-unified.vercel.app/coffee-house-demo |
+
+### 🔑 Panel Admin Demo
+Accede a los paneles administrativos con contraseña: **demo123**
+
+| Restaurante | URL |
+|------------|-----|
+| 🇮🇹 Ristorante Italiano | https://digitaliza-unified.vercel.app/ristorante-demo/admin |
+| 🇯🇵 Sakura Sushi Bar | https://digitaliza-unified.vercel.app/sakura-sushi-demo/admin |
+| 🇲🇽 El Mexicano Feliz | https://digitaliza-unified.vercel.app/el-mexicano-feliz-demo/admin |
+| ☕ The Coffee House | https://digitaliza-unified.vercel.app/coffee-house-demo/admin |
+
 - **Repositorio:** https://github.com/founderjourney/digitaliza-unified
 
 ## Tecnologias
@@ -88,12 +108,20 @@ src/
    npx prisma generate
    ```
 
-6. Iniciar servidor de desarrollo:
+6. (Opcional) Cargar datos de demostración:
+   ```bash
+   npm run seed
+   ```
+   Esto crea 4 restaurantes demo (Italiano, Japonés, Mexicano, Cafetería) con menús completos.
+
+7. Iniciar servidor de desarrollo:
    ```bash
    npm run dev
    ```
 
-7. Abrir [http://localhost:3000](http://localhost:3000)
+8. Abrir [http://localhost:3000](http://localhost:3000)
+   - Ver demos: [http://localhost:3000/ristorante-demo](http://localhost:3000/ristorante-demo)
+   - Panel Admin (contraseña: demo123): [http://localhost:3000/ristorante-demo/admin](http://localhost:3000/ristorante-demo/admin)
 
 ## Scripts Disponibles
 
@@ -103,6 +131,7 @@ src/
 | `npm run build` | Build de produccion |
 | `npm run start` | Servidor de produccion |
 | `npm run lint` | Ejecutar ESLint |
+| `npm run seed` | Poblar BD con datos demo (4 restaurantes) |
 | `npx prisma studio` | Abrir Prisma Studio (GUI de BD) |
 | `npx prisma db push` | Sincronizar schema con BD |
 | `npx prisma generate` | Regenerar cliente Prisma |
