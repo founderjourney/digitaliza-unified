@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { getThemeOptions, type ThemeKey } from '@/lib/themes'
+import type { BusinessMode } from '@/types'
 
 interface FormData {
   name: string
@@ -14,9 +15,17 @@ interface FormData {
   email: string
   address: string
   theme: ThemeKey
+  businessMode: BusinessMode
   password: string
   confirmPassword: string
 }
+
+const BUSINESS_MODES: { value: BusinessMode; label: string; emoji: string; description: string }[] = [
+  { value: 'restaurant', label: 'Restaurante/Café', emoji: '🍽️', description: 'Menú de comidas y bebidas + Reservas de mesa' },
+  { value: 'services', label: 'Servicios', emoji: '✂️', description: 'Barbería, Spa, Salón + Citas y agenda' },
+  { value: 'store', label: 'Tienda/Productos', emoji: '🛍️', description: 'Floristería, tienda + Pedidos por WhatsApp' },
+  { value: 'mixed', label: 'Mixto/Completo', emoji: '⭐', description: 'Todo: Productos, servicios, reservas, pedidos' },
+]
 
 interface FormErrors {
   [key: string]: string
@@ -33,6 +42,7 @@ export default function RegisterPage() {
     email: '',
     address: '',
     theme: 'general',
+    businessMode: 'restaurant',
     password: '',
     confirmPassword: '',
   })
@@ -89,6 +99,7 @@ export default function RegisterPage() {
           email: formData.email || undefined,
           address: formData.address,
           theme: formData.theme,
+          businessMode: formData.businessMode,
           password: formData.password,
         }),
       })
@@ -188,7 +199,7 @@ export default function RegisterPage() {
           {/* Theme selector */}
           <div className="w-full">
             <label className="mb-1 block text-sm font-medium text-gray-700">
-              Tipo de negocio *
+              Categoría del negocio *
             </label>
             <select
               value={formData.theme}
@@ -201,6 +212,35 @@ export default function RegisterPage() {
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Business Mode selector */}
+          <div className="w-full">
+            <label className="mb-2 block text-sm font-medium text-gray-700">
+              ¿Qué vas a gestionar? *
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {BUSINESS_MODES.map((mode) => (
+                <button
+                  key={mode.value}
+                  type="button"
+                  onClick={() => handleChange('businessMode', mode.value)}
+                  className={`flex flex-col items-start p-3 rounded-lg border-2 transition-all text-left ${
+                    formData.businessMode === mode.value
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300 bg-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xl">{mode.emoji}</span>
+                    <span className={`font-medium text-sm ${formData.businessMode === mode.value ? 'text-blue-700' : 'text-gray-800'}`}>
+                      {mode.label}
+                    </span>
+                  </div>
+                  <span className="text-xs text-gray-500 leading-tight">{mode.description}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           <Input

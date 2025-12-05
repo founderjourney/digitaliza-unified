@@ -2,6 +2,8 @@
 
 export type CuisineType = 'general' | 'italian' | 'japanese' | 'mexican' | 'coffee' | 'barber'
 
+export type BusinessMode = 'restaurant' | 'services' | 'store' | 'mixed'
+
 export interface Restaurant {
   id: string
   slug: string
@@ -12,6 +14,7 @@ export interface Restaurant {
   address: string
   hours: Record<string, string>
   theme: CuisineType
+  businessMode: BusinessMode
   password?: string
   logoUrl?: string
   description?: string

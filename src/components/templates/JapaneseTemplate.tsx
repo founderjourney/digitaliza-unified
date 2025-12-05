@@ -458,7 +458,7 @@ export default function JapaneseTemplate({ restaurant, menuItems, isAdmin = fals
               >
                 <div className="text-3xl mb-2">🕒</div>
                 <h3 className="text-lg font-semibold mb-1">Horarios</h3>
-                <p>{restaurant.hours}</p>
+                <p>{typeof restaurant.hours === 'string' ? restaurant.hours : 'Lun-Dom: 12pm-10pm'}</p>
               </motion.div>
             </div>
 
@@ -514,33 +514,7 @@ export default function JapaneseTemplate({ restaurant, menuItems, isAdmin = fals
         )}
       </main>
 
-      {/* Admin Login Modal */}
-      <AnimatePresence>
-        {showAdminLogin && (
-          <AdminLogin
-            restaurantPassword={restaurant.password}
-            onLogin={handleAdminLogin}
-            onCancel={() => setShowAdminLogin(false)}
-            restaurantName={restaurant.name}
-            theme="japanese"
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Admin Panel */}
-      <AnimatePresence>
-        {adminPanelOpen && isAuthenticated && (
-          <AdminPanel
-            restaurant={restaurant}
-            menuItems={localMenuItems}
-            onUpdateMenuItem={handleUpdateMenuItem}
-            onDeleteMenuItem={handleDeleteMenuItem}
-            onAddMenuItem={handleAddMenuItem}
-            onLogout={handleAdminLogout}
-            theme="japanese"
-          />
-        )}
-      </AnimatePresence>
+      {/* Admin se accede via /[slug]/admin */}
     </div>
   )
 }

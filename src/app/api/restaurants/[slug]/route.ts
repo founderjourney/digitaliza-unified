@@ -13,7 +13,7 @@ export async function GET(
 
     // Buscar restaurante
     const restaurants = await sql`
-      SELECT id, slug, name, phone, whatsapp, address, description, theme, "logoUrl", hours
+      SELECT id, slug, name, phone, whatsapp, address, description, theme, "businessMode", "logoUrl", hours
       FROM "Restaurant"
       WHERE slug = ${slug} AND "isActive" = true
     `
@@ -56,6 +56,7 @@ export async function GET(
       address: restaurant.address,
       description: restaurant.description,
       theme: restaurant.theme,
+      businessMode: restaurant.businessMode || 'restaurant',
       logoUrl: restaurant.logoUrl,
       hours: restaurant.hours || {},
       items,

@@ -6,9 +6,39 @@ import Link from 'next/link'
 import { QRGenerator } from '@/components/QRGenerator'
 import { getTheme } from '@/lib/themes'
 import { getBusinessConfig } from '@/lib/business-config'
-import type { Restaurant, MenuItem } from '@/types'
+import type { Restaurant, MenuItem, Link as LinkType, Reservation } from '@/types'
 
-type TabType = 'menu' | 'qr' | 'settings'
+type TabType = 'menu' | 'links' | 'reservations' | 'qr' | 'settings'
+
+// Iconos predefinidos para enlaces
+const LINK_ICONS: Record<string, { emoji: string; label: string; color: string }> = {
+  instagram: { emoji: '📸', label: 'Instagram', color: 'bg-gradient-to-r from-purple-500 to-pink-500' },
+  facebook: { emoji: '📘', label: 'Facebook', color: 'bg-blue-600' },
+  tiktok: { emoji: '🎵', label: 'TikTok', color: 'bg-black' },
+  whatsapp: { emoji: '💬', label: 'WhatsApp', color: 'bg-green-500' },
+  ubereats: { emoji: '🥡', label: 'Uber Eats', color: 'bg-green-600' },
+  rappi: { emoji: '🛵', label: 'Rappi', color: 'bg-orange-500' },
+  pedidosya: { emoji: '🍔', label: 'PedidosYa', color: 'bg-red-500' },
+  menu: { emoji: '📋', label: 'Menú', color: 'bg-amber-600' },
+  reservas: { emoji: '📅', label: 'Reservas', color: 'bg-indigo-600' },
+  web: { emoji: '🌐', label: 'Sitio Web', color: 'bg-slate-600' },
+  link: { emoji: '🔗', label: 'Enlace', color: 'bg-gray-500' },
+}
+
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  pending: { label: 'Pendiente', color: 'text-yellow-700', bg: 'bg-yellow-100' },
+  confirmed: { label: 'Confirmada', color: 'text-green-700', bg: 'bg-green-100' },
+  completed: { label: 'Completada', color: 'text-blue-700', bg: 'bg-blue-100' },
+  cancelled: { label: 'Cancelada', color: 'text-red-700', bg: 'bg-red-100' },
+}
+
+// Labels según modo de negocio
+const MODE_LABELS: Record<string, { items: string; item: string; addItem: string; reservations: string }> = {
+  restaurant: { items: 'Menú', item: 'Plato', addItem: 'Agregar Plato', reservations: 'Reservas' },
+  services: { items: 'Servicios', item: 'Servicio', addItem: 'Agregar Servicio', reservations: 'Citas' },
+  store: { items: 'Productos', item: 'Producto', addItem: 'Agregar Producto', reservations: 'Pedidos' },
+  mixed: { items: 'Catálogo', item: 'Item', addItem: 'Agregar Item', reservations: 'Reservas/Citas' },
+}
 
 export default function AdminPage() {
   const params = useParams()
@@ -41,11 +71,29 @@ export default function AdminPage() {
   })
   const [itemFormLoading, setItemFormLoading] = useState(false)
 
+  // Links state
+  const [links, setLinks] = useState<LinkType[]>([])
+  const [showLinkForm, setShowLinkForm] = useState(false)
+  const [editingLinkId, setEditingLinkId] = useState<string | null>(null)
+  const [linkForm, setLinkForm] = useState({ title: '', url: '', icon: 'link', isActive: true })
+  const [linkFormLoading, setLinkFormLoading] = useState(false)
+
+  // Reservations state
+  const [reservations, setReservations] = useState<Reservation[]>([])
+  const [reservationsLoading, setReservationsLoading] = useState(false)
+  const [filterStatus, setFilterStatus] = useState<string>('all')
+  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null)
+
   // Get business config
   const businessConfig = restaurant ? getBusinessConfig(restaurant.theme) : getBusinessConfig('general')
   const theme = restaurant ? getTheme(restaurant.theme) : getTheme('general')
+  const businessMode = restaurant?.businessMode || 'restaurant'
+  const modeLabels = MODE_LABELS[businessMode] || MODE_LABELS.restaurant
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
   const menuUrl = `${baseUrl}/${slug}`
+
+  // Determinar qué tabs mostrar según el modo
+  const showReservations = businessMode !== 'store' // Tiendas no tienen reservas, tienen pedidos por WhatsApp
 
   // Check auth and load data
   const checkAuth = useCallback(async () => {
@@ -154,10 +202,10 @@ export default function AdminPage() {
         const newItem = await res.json()
         setItems((prev) => [...prev, newItem])
         resetItemForm()
-        setSuccessMessage(`${businessConfig.itemLabel} agregado correctamente`)
+        setSuccessMessage(`${modeLabels.item} agregado correctamente`)
       } else {
         const errorData = await res.json().catch(() => ({}))
-        setError(errorData.error || `Error al agregar ${businessConfig.itemLabel.toLowerCase()}`)
+        setError(errorData.error || `Error al agregar ${modeLabels.item.toLowerCase()}`)
       }
     } catch {
       setError('Error de conexión')
@@ -218,6 +266,173 @@ export default function AdminPage() {
     setSuccessMessage('Link copiado!')
   }
 
+  // ========== LINKS FUNCTIONS ==========
+  const fetchLinks = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/restaurants/${slug}/links`)
+      if (res.ok) {
+        const data = await res.json()
+        setLinks(data)
+      }
+    } catch (err) {
+      console.error('Error fetching links:', err)
+    }
+  }, [slug])
+
+  const resetLinkForm = () => {
+    setLinkForm({ title: '', url: '', icon: 'link', isActive: true })
+    setShowLinkForm(false)
+    setEditingLinkId(null)
+  }
+
+  const handleAddLink = async () => {
+    if (!linkForm.title || !linkForm.url) {
+      setError('Completa título y URL')
+      return
+    }
+    setLinkFormLoading(true)
+    try {
+      const res = await fetch(`/api/restaurants/${slug}/links`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(linkForm),
+      })
+      if (res.ok) {
+        await fetchLinks()
+        resetLinkForm()
+        setSuccessMessage('Enlace agregado')
+      } else {
+        setError('Error al agregar enlace')
+      }
+    } catch {
+      setError('Error de conexión')
+    } finally {
+      setLinkFormLoading(false)
+    }
+  }
+
+  const handleUpdateLink = async (id: string, updates: Partial<LinkType>) => {
+    try {
+      const res = await fetch(`/api/restaurants/${slug}/links/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      })
+      if (res.ok) {
+        await fetchLinks()
+        setSuccessMessage('Enlace actualizado')
+        setEditingLinkId(null)
+      }
+    } catch {
+      setError('Error al actualizar')
+    }
+  }
+
+  const handleDeleteLink = async (id: string) => {
+    if (!confirm('¿Eliminar este enlace?')) return
+    try {
+      const res = await fetch(`/api/restaurants/${slug}/links/${id}`, {
+        method: 'DELETE',
+      })
+      if (res.ok) {
+        setLinks(links.filter(l => l.id !== id))
+        setSuccessMessage('Enlace eliminado')
+      }
+    } catch {
+      setError('Error al eliminar')
+    }
+  }
+
+  const handleToggleLinkActive = async (link: LinkType) => {
+    await handleUpdateLink(link.id, { isActive: !link.isActive })
+  }
+
+  // ========== RESERVATIONS FUNCTIONS ==========
+  const fetchReservations = useCallback(async () => {
+    setReservationsLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (filterStatus !== 'all') params.append('status', filterStatus)
+      const res = await fetch(`/api/restaurants/${slug}/reservations?${params}`)
+      if (res.ok) {
+        const data = await res.json()
+        setReservations(data)
+      }
+    } catch (err) {
+      console.error('Error fetching reservations:', err)
+    } finally {
+      setReservationsLoading(false)
+    }
+  }, [slug, filterStatus])
+
+  const handleUpdateReservationStatus = async (id: string, newStatus: string) => {
+    try {
+      const res = await fetch(`/api/restaurants/${slug}/reservations/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      if (res.ok) {
+        setReservations(reservations.map(r => r.id === id ? { ...r, status: newStatus as Reservation['status'] } : r))
+        if (selectedReservation?.id === id) {
+          setSelectedReservation({ ...selectedReservation, status: newStatus as Reservation['status'] })
+        }
+        setSuccessMessage('Estado actualizado')
+      }
+    } catch {
+      setError('Error al actualizar')
+    }
+  }
+
+  const handleDeleteReservation = async (id: string) => {
+    if (!confirm('¿Eliminar esta reserva?')) return
+    try {
+      const res = await fetch(`/api/restaurants/${slug}/reservations/${id}`, {
+        method: 'DELETE',
+      })
+      if (res.ok) {
+        setReservations(reservations.filter(r => r.id !== id))
+        if (selectedReservation?.id === id) setSelectedReservation(null)
+        setSuccessMessage('Reserva eliminada')
+      }
+    } catch {
+      setError('Error al eliminar')
+    }
+  }
+
+  const openWhatsApp = (reservation: Reservation) => {
+    const message = encodeURIComponent(
+      `Hola ${reservation.name}, confirmamos tu reserva para el ${new Date(reservation.date).toLocaleDateString('es-ES')} a las ${reservation.time} para ${reservation.guests} persona(s). ¡Te esperamos!`
+    )
+    const phone = reservation.phone.replace(/[^0-9]/g, '')
+    window.open(`https://wa.me/${phone}?text=${message}`, '_blank')
+  }
+
+  const formatDate = (date: Date | string) => {
+    const d = new Date(date)
+    return d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })
+  }
+
+  // Stats for reservations
+  const reservationStats = {
+    pending: reservations.filter(r => r.status === 'pending').length,
+    confirmed: reservations.filter(r => r.status === 'confirmed').length,
+    today: reservations.filter(r => new Date(r.date).toDateString() === new Date().toDateString()).length,
+  }
+
+  // Load links and reservations when tab changes
+  useEffect(() => {
+    if (isAuthenticated && activeTab === 'links') {
+      fetchLinks()
+    }
+  }, [isAuthenticated, activeTab, fetchLinks])
+
+  useEffect(() => {
+    if (isAuthenticated && activeTab === 'reservations') {
+      fetchReservations()
+    }
+  }, [isAuthenticated, activeTab, fetchReservations])
+
   // Loading state
   if (isLoading) {
     return (
@@ -271,7 +486,7 @@ export default function AdminPage() {
 
           <p className="mt-6 text-center text-sm text-slate-500">
             <Link href={`/${slug}`} className="text-amber-500 hover:text-amber-400">
-              Ver {businessConfig.itemsLabel.toLowerCase()} público
+              Ver {modeLabels.items.toLowerCase()} público
             </Link>
           </p>
         </div>
@@ -309,7 +524,7 @@ export default function AdminPage() {
       <div className="bg-white border-b px-4 py-4">
         <div className="grid grid-cols-3 gap-3">
           <div className="rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 p-3 border-l-4 border-amber-500">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{businessConfig.itemsLabel}</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{modeLabels.items}</p>
             <p className="text-2xl font-bold text-amber-600">{items.length}</p>
           </div>
           <div className="rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 p-3 border-l-4 border-emerald-500">
@@ -324,25 +539,60 @@ export default function AdminPage() {
       </div>
 
       {/* Tabs */}
-      <div className="bg-white border-b px-4">
-        <div className="flex gap-1">
-          {[
-            { id: 'menu' as TabType, label: `📋 ${businessConfig.itemsLabel}` },
-            { id: 'qr' as TabType, label: '📱 QR Code' },
-            { id: 'settings' as TabType, label: '⚙️ Config' },
-          ].map((tab) => (
+      <div className="bg-white border-b px-4 overflow-x-auto">
+        <div className="flex gap-1 min-w-max">
+          <button
+            onClick={() => setActiveTab('menu')}
+            className={`px-3 py-3 text-sm font-semibold transition-colors border-b-2 whitespace-nowrap ${
+              activeTab === 'menu'
+                ? 'border-amber-500 text-amber-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            📋 {modeLabels.items}
+          </button>
+          <button
+            onClick={() => setActiveTab('links')}
+            className={`px-3 py-3 text-sm font-semibold transition-colors border-b-2 whitespace-nowrap ${
+              activeTab === 'links'
+                ? 'border-amber-500 text-amber-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            🔗 Enlaces
+          </button>
+          {showReservations && (
             <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 py-3 text-sm font-semibold transition-colors border-b-2 ${
-                activeTab === tab.id
+              onClick={() => setActiveTab('reservations')}
+              className={`px-3 py-3 text-sm font-semibold transition-colors border-b-2 whitespace-nowrap ${
+                activeTab === 'reservations'
                   ? 'border-amber-500 text-amber-600'
                   : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}
             >
-              {tab.label}
+              📅 {modeLabels.reservations}
             </button>
-          ))}
+          )}
+          <button
+            onClick={() => setActiveTab('qr')}
+            className={`px-3 py-3 text-sm font-semibold transition-colors border-b-2 whitespace-nowrap ${
+              activeTab === 'qr'
+                ? 'border-amber-500 text-amber-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            📱 QR
+          </button>
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`px-3 py-3 text-sm font-semibold transition-colors border-b-2 whitespace-nowrap ${
+              activeTab === 'settings'
+                ? 'border-amber-500 text-amber-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            ⚙️
+          </button>
         </div>
       </div>
 
@@ -365,26 +615,26 @@ export default function AdminPage() {
           <div>
             {/* Header */}
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-slate-800">Gestionar {businessConfig.itemsLabel}</h2>
+              <h2 className="text-lg font-bold text-slate-800">Gestionar {modeLabels.items}</h2>
               <button
                 onClick={() => setShowAddForm(true)}
                 className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-amber-400"
               >
-                + {businessConfig.addItemLabel}
+                + {modeLabels.addItem}
               </button>
             </div>
 
             {/* Add Item Form */}
             {showAddForm && (
               <div className="mb-6 rounded-xl bg-white border border-slate-200 p-4 shadow-sm">
-                <h3 className="mb-4 text-base font-bold text-slate-800">{businessConfig.addItemLabel}</h3>
+                <h3 className="mb-4 text-base font-bold text-slate-800">{modeLabels.addItem}</h3>
                 <div className="space-y-3">
                   <div>
                     <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Nombre *</label>
                     <input
                       value={itemForm.name}
                       onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
-                      placeholder={`Nombre del ${businessConfig.itemLabel.toLowerCase()}`}
+                      placeholder={`Nombre del ${modeLabels.item.toLowerCase()}`}
                       className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
                     />
                   </div>
@@ -545,16 +795,373 @@ export default function AdminPage() {
               {items.length === 0 && !showAddForm && (
                 <div className="rounded-xl bg-white border border-slate-200 p-8 text-center">
                   <p className="text-4xl mb-3">{businessConfig.emoji}</p>
-                  <p className="text-slate-500">No tienes {businessConfig.itemsLabel.toLowerCase()} aún.</p>
+                  <p className="text-slate-500">No tienes {modeLabels.items.toLowerCase()} aún.</p>
                   <button
                     onClick={() => setShowAddForm(true)}
                     className="mt-3 text-amber-600 font-semibold hover:text-amber-700"
                   >
-                    {businessConfig.addItemLabel}
+                    {modeLabels.addItem}
                   </button>
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* LINKS TAB */}
+        {activeTab === 'links' && (
+          <div>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-800">Mis Enlaces</h2>
+              <button
+                onClick={() => setShowLinkForm(true)}
+                className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-amber-400"
+              >
+                + Agregar
+              </button>
+            </div>
+
+            {/* Add Link Form */}
+            {showLinkForm && (
+              <div className="mb-6 rounded-xl bg-white border border-slate-200 p-4 shadow-sm">
+                <h3 className="mb-4 text-base font-bold text-slate-800">
+                  {editingLinkId ? 'Editar Enlace' : 'Nuevo Enlace'}
+                </h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Título *</label>
+                    <input
+                      value={linkForm.title}
+                      onChange={(e) => setLinkForm({ ...linkForm, title: e.target.value })}
+                      placeholder="Mi Instagram"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase tracking-wide">URL *</label>
+                    <input
+                      value={linkForm.url}
+                      onChange={(e) => setLinkForm({ ...linkForm, url: e.target.value })}
+                      placeholder="https://instagram.com/minegocio"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Icono</label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {Object.entries(LINK_ICONS).map(([key, { emoji, label }]) => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setLinkForm({ ...linkForm, icon: key })}
+                          className={`flex flex-col items-center p-2 rounded-lg border-2 transition-all ${
+                            linkForm.icon === key
+                              ? 'border-amber-500 bg-amber-50'
+                              : 'border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          <span className="text-xl">{emoji}</span>
+                          <span className="text-xs text-slate-600 mt-1 truncate w-full text-center">{label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={linkForm.isActive}
+                      onChange={(e) => setLinkForm({ ...linkForm, isActive: e.target.checked })}
+                      className="h-4 w-4 rounded border-slate-300 text-amber-500"
+                    />
+                    <span className="text-sm text-slate-600">Enlace activo</span>
+                  </label>
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={editingLinkId ? () => handleUpdateLink(editingLinkId, linkForm) : handleAddLink}
+                      disabled={linkFormLoading}
+                      className="flex-1 rounded-lg bg-emerald-500 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-50"
+                    >
+                      {linkFormLoading ? 'Guardando...' : 'Guardar'}
+                    </button>
+                    <button
+                      onClick={resetLinkForm}
+                      className="flex-1 rounded-lg bg-slate-200 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-300"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Links List */}
+            <div className="space-y-3">
+              {links.length === 0 ? (
+                <div className="rounded-xl bg-white border border-slate-200 p-8 text-center">
+                  <p className="text-4xl mb-3">🔗</p>
+                  <p className="text-slate-500">No tienes enlaces aún.</p>
+                  <button
+                    onClick={() => setShowLinkForm(true)}
+                    className="mt-3 text-amber-600 font-semibold hover:text-amber-700"
+                  >
+                    Agregar tu primer enlace
+                  </button>
+                </div>
+              ) : (
+                links.map((link) => {
+                  const iconData = LINK_ICONS[link.icon] || LINK_ICONS.link
+                  return (
+                    <div
+                      key={link.id}
+                      className={`rounded-xl bg-white border p-4 shadow-sm transition-all ${
+                        !link.isActive ? 'opacity-60' : ''
+                      } ${editingLinkId === link.id ? 'border-amber-500' : 'border-slate-200'}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white text-xl ${iconData.color}`}>
+                          {iconData.emoji}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-slate-800 truncate">{link.title}</p>
+                          <p className="text-xs text-slate-500 truncate">{link.url}</p>
+                          {link.clicks > 0 && (
+                            <p className="text-xs text-blue-600">{link.clicks} clicks</p>
+                          )}
+                        </div>
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
+                          link.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                        }`}>
+                          {link.isActive ? 'Activo' : 'Inactivo'}
+                        </span>
+                      </div>
+                      <div className="mt-3 flex gap-2 border-t border-slate-100 pt-3">
+                        <button
+                          onClick={() => handleToggleLinkActive(link)}
+                          className={`flex-1 rounded-lg py-2 text-xs font-semibold ${
+                            link.isActive
+                              ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                              : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                          }`}
+                        >
+                          {link.isActive ? 'Desactivar' : 'Activar'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingLinkId(link.id)
+                            setLinkForm({ title: link.title, url: link.url, icon: link.icon, isActive: link.isActive })
+                            setShowLinkForm(true)
+                          }}
+                          className="flex-1 rounded-lg bg-blue-50 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => handleDeleteLink(link.id)}
+                          className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* RESERVATIONS TAB */}
+        {activeTab === 'reservations' && (
+          <div>
+            {/* Header with stats */}
+            <div className="mb-4">
+              <h2 className="text-lg font-bold text-slate-800 mb-3">Reservas</h2>
+              <div className="grid grid-cols-3 gap-2 mb-4">
+                <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-2 text-center">
+                  <p className="text-lg font-bold text-yellow-600">{reservationStats.pending}</p>
+                  <p className="text-xs text-yellow-700">Pendientes</p>
+                </div>
+                <div className="rounded-lg bg-green-50 border border-green-200 p-2 text-center">
+                  <p className="text-lg font-bold text-green-600">{reservationStats.confirmed}</p>
+                  <p className="text-xs text-green-700">Confirmadas</p>
+                </div>
+                <div className="rounded-lg bg-blue-50 border border-blue-200 p-2 text-center">
+                  <p className="text-lg font-bold text-blue-600">{reservationStats.today}</p>
+                  <p className="text-xs text-blue-700">Hoy</p>
+                </div>
+              </div>
+
+              {/* Filter */}
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
+              >
+                <option value="all">Todas las reservas</option>
+                <option value="pending">Pendientes</option>
+                <option value="confirmed">Confirmadas</option>
+                <option value="completed">Completadas</option>
+                <option value="cancelled">Canceladas</option>
+              </select>
+            </div>
+
+            {/* Reservations List */}
+            {reservationsLoading ? (
+              <div className="flex justify-center py-8">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-amber-500 border-t-transparent" />
+              </div>
+            ) : selectedReservation ? (
+              /* Reservation Detail View */
+              <div className="rounded-xl bg-white border border-slate-200 p-4 shadow-sm">
+                <button
+                  onClick={() => setSelectedReservation(null)}
+                  className="text-amber-600 text-sm mb-4 flex items-center gap-1"
+                >
+                  ← Volver
+                </button>
+
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-800">{selectedReservation.name}</h3>
+                    <p className="text-slate-600">{selectedReservation.phone}</p>
+                    {selectedReservation.email && (
+                      <p className="text-slate-500 text-sm">{selectedReservation.email}</p>
+                    )}
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_CONFIG[selectedReservation.status].bg} ${STATUS_CONFIG[selectedReservation.status].color}`}>
+                    {STATUS_CONFIG[selectedReservation.status].label}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4 py-4 border-y border-slate-200 mb-4">
+                  <div className="text-center">
+                    <p className="text-2xl">📅</p>
+                    <p className="font-medium text-slate-800">{formatDate(selectedReservation.date)}</p>
+                    <p className="text-sm text-slate-500">Fecha</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl">🕐</p>
+                    <p className="font-medium text-slate-800">{selectedReservation.time}</p>
+                    <p className="text-sm text-slate-500">Hora</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl">👥</p>
+                    <p className="font-medium text-slate-800">{selectedReservation.guests}</p>
+                    <p className="text-sm text-slate-500">Personas</p>
+                  </div>
+                </div>
+
+                {selectedReservation.notes && (
+                  <div className="bg-slate-50 p-3 rounded-lg mb-4">
+                    <p className="text-sm text-slate-500 mb-1">Notas:</p>
+                    <p className="text-slate-700">{selectedReservation.notes}</p>
+                  </div>
+                )}
+
+                {/* Status Actions */}
+                {selectedReservation.status === 'pending' && (
+                  <div className="grid grid-cols-2 gap-2 mb-4">
+                    <button
+                      onClick={() => handleUpdateReservationStatus(selectedReservation.id, 'confirmed')}
+                      className="rounded-lg bg-emerald-500 py-2 text-sm font-semibold text-white hover:bg-emerald-600"
+                    >
+                      ✓ Confirmar
+                    </button>
+                    <button
+                      onClick={() => handleUpdateReservationStatus(selectedReservation.id, 'cancelled')}
+                      className="rounded-lg bg-red-100 py-2 text-sm font-semibold text-red-700 hover:bg-red-200"
+                    >
+                      ✕ Cancelar
+                    </button>
+                  </div>
+                )}
+                {selectedReservation.status === 'confirmed' && (
+                  <div className="grid grid-cols-2 gap-2 mb-4">
+                    <button
+                      onClick={() => handleUpdateReservationStatus(selectedReservation.id, 'completed')}
+                      className="rounded-lg bg-blue-500 py-2 text-sm font-semibold text-white hover:bg-blue-600"
+                    >
+                      ✓ Completar
+                    </button>
+                    <button
+                      onClick={() => handleUpdateReservationStatus(selectedReservation.id, 'cancelled')}
+                      className="rounded-lg bg-red-100 py-2 text-sm font-semibold text-red-700 hover:bg-red-200"
+                    >
+                      ✕ Cancelar
+                    </button>
+                  </div>
+                )}
+
+                {/* Contact Actions */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => openWhatsApp(selectedReservation)}
+                    className="flex-1 rounded-lg bg-green-500 py-2 text-sm font-semibold text-white hover:bg-green-600"
+                  >
+                    💬 WhatsApp
+                  </button>
+                  <button
+                    onClick={() => window.open(`tel:${selectedReservation.phone}`, '_self')}
+                    className="flex-1 rounded-lg bg-slate-100 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+                  >
+                    📞 Llamar
+                  </button>
+                  <button
+                    onClick={() => handleDeleteReservation(selectedReservation.id)}
+                    className="rounded-lg bg-red-100 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-200"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Reservations List */
+              <div className="space-y-3">
+                {reservations.length === 0 ? (
+                  <div className="rounded-xl bg-white border border-slate-200 p-8 text-center">
+                    <p className="text-4xl mb-3">📅</p>
+                    <p className="text-slate-500">No hay reservas</p>
+                    {filterStatus !== 'all' && (
+                      <p className="text-sm text-slate-400 mt-2">Prueba cambiar el filtro</p>
+                    )}
+                  </div>
+                ) : (
+                  reservations.map((reservation) => (
+                    <button
+                      key={reservation.id}
+                      onClick={() => setSelectedReservation(reservation)}
+                      className="w-full rounded-xl bg-white border border-slate-200 p-4 shadow-sm hover:border-amber-300 transition-colors text-left"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-14 text-center flex-shrink-0">
+                          <div className="bg-slate-100 rounded-lg p-2">
+                            <p className="text-xs text-slate-500 uppercase">
+                              {new Date(reservation.date).toLocaleDateString('es-ES', { weekday: 'short' })}
+                            </p>
+                            <p className="text-lg font-bold text-slate-800">
+                              {new Date(reservation.date).getDate()}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold text-slate-800 truncate">{reservation.name}</p>
+                            <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_CONFIG[reservation.status].bg} ${STATUS_CONFIG[reservation.status].color}`}>
+                              {STATUS_CONFIG[reservation.status].label}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 text-sm text-slate-500 mt-1">
+                            <span>🕐 {reservation.time}</span>
+                            <span>👥 {reservation.guests}</span>
+                          </div>
+                        </div>
+                        <span className="text-slate-400">→</span>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -580,7 +1187,7 @@ export default function AdminPage() {
                   target="_blank"
                   className="block w-full rounded-lg bg-amber-500 py-3 text-center text-sm font-semibold text-slate-900 hover:bg-amber-400"
                 >
-                  👁️ Ver {businessConfig.itemsLabel}
+                  👁️ Ver {modeLabels.items}
                 </Link>
               </div>
               <p className="mt-4 text-center text-xs text-slate-400">{menuUrl}</p>

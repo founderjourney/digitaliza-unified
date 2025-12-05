@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { PremiumTemplate } from '@/components/templates'
 import { getPremiumTheme, themes } from '@/lib/themes'
-import type { Restaurant, MenuItem } from '@/types'
+import type { Restaurant, MenuItem, Link } from '@/types'
 
 interface PageProps {
   params: Promise<{ slug: string }>
@@ -31,6 +31,19 @@ async function getRestaurant(slug: string): Promise<{ restaurant: Restaurant; it
   }
 }
 
+async function getLinks(slug: string): Promise<Link[]> {
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+    const res = await fetch(`${baseUrl}/api/restaurants/${slug}/links`, {
+      cache: 'no-store',
+    })
+    if (!res.ok) return []
+    return await res.json()
+  } catch {
+    return []
+  }
+}
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params
   const data = await getRestaurant(slug)
@@ -52,13 +65,19 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function MenuPage({ params }: PageProps) {
   const { slug } = await params
-  const data = await getRestaurant(slug)
+  const [data, links] = await Promise.all([
+    getRestaurant(slug),
+    getLinks(slug)
+  ])
 
   if (!data) {
     notFound()
   }
 
   const { restaurant, items } = data
+
+  // Filter only active links
+  const activeLinks = links.filter(link => link.isActive)
 
   // Filter only available items for public view
   const availableItems = items.filter((item) => item.available)
@@ -100,6 +119,9 @@ export default async function MenuPage({ params }: PageProps) {
       business={businessConfig}
       menuItems={formattedMenuItems}
       theme={selectedTheme}
+      links={activeLinks}
+      slug={slug}
+      businessMode={restaurant.businessMode || 'restaurant'}
     />
   )
 }

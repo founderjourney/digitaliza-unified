@@ -29,6 +29,29 @@ interface BusinessConfig {
   reviewCount?: number
 }
 
+interface LinkItem {
+  id: string
+  title: string
+  url: string
+  icon: string
+  isActive: boolean
+  clicks: number
+}
+
+const LINK_ICONS: Record<string, { emoji: string; color: string }> = {
+  instagram: { emoji: '📸', color: 'from-purple-500 to-pink-500' },
+  facebook: { emoji: '📘', color: 'from-blue-600 to-blue-700' },
+  tiktok: { emoji: '🎵', color: 'from-gray-900 to-black' },
+  whatsapp: { emoji: '💬', color: 'from-green-500 to-green-600' },
+  ubereats: { emoji: '🥡', color: 'from-green-600 to-green-700' },
+  rappi: { emoji: '🛵', color: 'from-orange-500 to-orange-600' },
+  pedidosya: { emoji: '🍔', color: 'from-red-500 to-red-600' },
+  menu: { emoji: '📋', color: 'from-amber-500 to-amber-600' },
+  reservas: { emoji: '📅', color: 'from-indigo-500 to-indigo-600' },
+  web: { emoji: '🌐', color: 'from-slate-600 to-slate-700' },
+  link: { emoji: '🔗', color: 'from-gray-500 to-gray-600' },
+}
+
 interface ThemeColors {
   primaryDark: string
   secondaryDark: string
@@ -43,6 +66,17 @@ interface PremiumTemplateProps {
   business: BusinessConfig
   menuItems?: MenuItem[]
   theme?: Partial<ThemeColors>
+  links?: LinkItem[]
+  slug?: string
+  businessMode?: 'restaurant' | 'services' | 'store' | 'mixed'
+}
+
+// Labels según el modo de negocio
+const MODE_CONFIG: Record<string, { items: string; reserve: string; reserveTitle: string; showReserve: boolean }> = {
+  restaurant: { items: 'Menú', reserve: 'Reservar', reserveTitle: 'Reservar Mesa', showReserve: true },
+  services: { items: 'Servicios', reserve: 'Agendar', reserveTitle: 'Agendar Cita', showReserve: true },
+  store: { items: 'Productos', reserve: 'Pedir', reserveTitle: 'Hacer Pedido', showReserve: false },
+  mixed: { items: 'Catálogo', reserve: 'Reservar', reserveTitle: 'Reservar/Agendar', showReserve: true },
 }
 
 // Default themes for different business types
@@ -143,9 +177,13 @@ const defaultMenuData: MenuItem[] = [
 export default function PremiumTemplate({
   business,
   menuItems = [],
-  theme = {}
+  theme = {},
+  links = [],
+  slug = '',
+  businessMode = 'restaurant'
 }: PremiumTemplateProps) {
-  const [activeSection, setActiveSection] = useState('menu')
+  const modeConfig = MODE_CONFIG[businessMode] || MODE_CONFIG.restaurant
+  const [activeSection, setActiveSection] = useState(links.length > 0 ? 'links' : 'menu')
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set())
   const [selectedDish, setSelectedDish] = useState<MenuItem | null>(null)
   const [selectedDate, setSelectedDate] = useState<number | null>(null)
@@ -153,8 +191,11 @@ export default function PremiumTemplate({
     name: '',
     phone: '',
     time: '19:00',
-    guests: '2 personas'
+    guests: 2
   })
+  const [reservationLoading, setReservationLoading] = useState(false)
+  const [reservationSuccess, setReservationSuccess] = useState(false)
+  const [reservationError, setReservationError] = useState('')
 
   // Merge theme with defaults
   const colors: ThemeColors = { ...premiumThemes.default, ...theme }
@@ -226,15 +267,62 @@ export default function PremiumTemplate({
     }
   }
 
-  const handleReservation = (e: React.FormEvent) => {
+  const handleReservation = async (e: React.FormEvent) => {
     e.preventDefault()
-    const message = `Hola, quiero reservar:
+
+    if (!reservationForm.name || !reservationForm.phone || !selectedDate) {
+      setReservationError('Por favor completa todos los campos')
+      return
+    }
+
+    setReservationLoading(true)
+    setReservationError('')
+    setReservationSuccess(false)
+
+    try {
+      // Build the date
+      const today = new Date()
+      const reservationDate = new Date(today)
+      if (selectedDate < today.getDate()) {
+        // Next month
+        reservationDate.setMonth(reservationDate.getMonth() + 1)
+      }
+      reservationDate.setDate(selectedDate)
+
+      const res = await fetch(`/api/restaurants/${slug}/reservations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: reservationForm.name,
+          phone: reservationForm.phone,
+          date: reservationDate.toISOString(),
+          time: reservationForm.time,
+          guests: reservationForm.guests,
+        }),
+      })
+
+      if (res.ok) {
+        setReservationSuccess(true)
+        setReservationForm({ name: '', phone: '', time: '19:00', guests: 2 })
+        setSelectedDate(null)
+
+        // Also send WhatsApp message
+        const message = `Hola, acabo de hacer una reserva:
 - Nombre: ${reservationForm.name}
-- Fecha: Dia ${selectedDate}
+- Fecha: ${reservationDate.toLocaleDateString('es-ES')}
 - Hora: ${reservationForm.time}
 - Personas: ${reservationForm.guests}
-- Telefono: ${reservationForm.phone}`
-    contactWhatsapp(message)
+- Teléfono: ${reservationForm.phone}`
+        setTimeout(() => contactWhatsapp(message), 1500)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setReservationError(data.error || 'Error al crear la reserva')
+      }
+    } catch {
+      setReservationError('Error de conexión')
+    } finally {
+      setReservationLoading(false)
+    }
   }
 
   // CSS custom properties
@@ -585,6 +673,79 @@ export default function PremiumTemplate({
           margin-top: 0.25rem;
         }
 
+        /* Links Section */
+        .pt-links-section {
+          padding: 1.5rem;
+          background: linear-gradient(135deg, rgba(212, 175, 55, 0.1) 0%, rgba(212, 175, 55, 0.05) 100%);
+          border-radius: 16px;
+          border: 1px solid var(--border);
+          animation: pt-slideUp 0.6s ease-out 0.2s both;
+        }
+
+        .pt-section-title {
+          font-family: 'Playfair Display', Georgia, serif;
+          font-size: 1.4rem;
+          color: var(--accent-gold);
+          text-align: center;
+          margin-bottom: 1.5rem;
+          letter-spacing: 1px;
+        }
+
+        .pt-links-grid {
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+        }
+
+        .pt-link-card {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          padding: 1rem 1.25rem;
+          background: rgba(212, 175, 55, 0.05);
+          border: 1px solid var(--border);
+          border-radius: 12px;
+          text-decoration: none;
+          transition: all 0.3s ease;
+        }
+
+        .pt-link-card:hover {
+          background: rgba(212, 175, 55, 0.15);
+          border-color: var(--accent-gold);
+          transform: translateX(4px);
+        }
+
+        .pt-link-icon {
+          width: 48px;
+          height: 48px;
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 24px;
+          flex-shrink: 0;
+        }
+
+        .pt-link-title {
+          flex: 1;
+          font-weight: 600;
+          color: var(--text-light);
+          font-size: 1rem;
+        }
+
+        .pt-link-arrow {
+          color: var(--accent-gold);
+          font-size: 1.2rem;
+          opacity: 0;
+          transform: translateX(-8px);
+          transition: all 0.3s ease;
+        }
+
+        .pt-link-card:hover .pt-link-arrow {
+          opacity: 1;
+          transform: translateX(0);
+        }
+
         /* Reserve Section */
         .pt-reserve-section {
           background: linear-gradient(135deg, rgba(212, 175, 55, 0.1) 0%, rgba(212, 175, 55, 0.05) 100%);
@@ -685,6 +846,26 @@ export default function PremiumTemplate({
           border-color: var(--accent-gold);
         }
 
+        .pt-form-message {
+          padding: 0.875rem 1rem;
+          border-radius: 10px;
+          font-size: 0.9rem;
+          margin-top: 1rem;
+          text-align: center;
+        }
+
+        .pt-form-error {
+          background: rgba(239, 68, 68, 0.15);
+          border: 1px solid rgba(239, 68, 68, 0.3);
+          color: #fca5a5;
+        }
+
+        .pt-form-success {
+          background: rgba(34, 197, 94, 0.15);
+          border: 1px solid rgba(34, 197, 94, 0.3);
+          color: #86efac;
+        }
+
         .pt-btn-reserve {
           width: 100%;
           padding: 1.25rem;
@@ -703,6 +884,12 @@ export default function PremiumTemplate({
         .pt-btn-reserve:hover {
           transform: translateY(-2px);
           box-shadow: 0 12px 32px rgba(212, 175, 55, 0.4);
+        }
+
+        .pt-btn-reserve:disabled {
+          opacity: 0.7;
+          cursor: not-allowed;
+          transform: none;
         }
 
         /* Footer */
@@ -886,18 +1073,28 @@ export default function PremiumTemplate({
           </div>
         </div>
         <nav className="pt-nav">
+          {links.length > 0 && (
+            <button
+              className={`pt-nav-btn ${activeSection === 'links' ? 'active' : ''}`}
+              onClick={() => scrollToSection('links')}
+            >
+              🔗 Links
+            </button>
+          )}
           <button
             className={`pt-nav-btn ${activeSection === 'menu' ? 'active' : ''}`}
             onClick={() => scrollToSection('menu')}
           >
-            📋 Menu
+            📋 {modeConfig.items}
           </button>
-          <button
-            className={`pt-nav-btn ${activeSection === 'reserve' ? 'active' : ''}`}
-            onClick={() => scrollToSection('reserve')}
-          >
-            📅 Reservar
-          </button>
+          {modeConfig.showReserve && (
+            <button
+              className={`pt-nav-btn ${activeSection === 'reserve' ? 'active' : ''}`}
+              onClick={() => scrollToSection('reserve')}
+            >
+              📅 {modeConfig.reserve}
+            </button>
+          )}
           <button
             className="pt-nav-btn"
             onClick={() => contactWhatsapp()}
@@ -920,6 +1117,35 @@ export default function PremiumTemplate({
           </div>
         )}
       </div>
+
+      {/* Links Section */}
+      {links.length > 0 && (
+        <div className="pt-content" id="links">
+          <div className="pt-links-section">
+            <h2 className="pt-section-title">Síguenos & Ordena</h2>
+            <div className="pt-links-grid">
+              {links.map((link) => {
+                const iconData = LINK_ICONS[link.icon] || LINK_ICONS.link
+                return (
+                  <a
+                    key={link.id}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="pt-link-card"
+                  >
+                    <div className={`pt-link-icon bg-gradient-to-r ${iconData.color}`}>
+                      {iconData.emoji}
+                    </div>
+                    <span className="pt-link-title">{link.title}</span>
+                    <span className="pt-link-arrow">→</span>
+                  </a>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       <div className="pt-content" id="menu">
@@ -980,9 +1206,10 @@ export default function PremiumTemplate({
       </div>
 
       {/* Reservation Section */}
+      {modeConfig.showReserve && (
       <div className="pt-content">
         <div className="pt-reserve-section" id="reserve">
-          <h2 className="pt-reserve-title">Reservar Mesa</h2>
+          <h2 className="pt-reserve-title">{modeConfig.reserveTitle}</h2>
 
           <form onSubmit={handleReservation}>
             <div className="pt-form-row">
@@ -1034,13 +1261,18 @@ export default function PremiumTemplate({
                   value={reservationForm.time}
                   onChange={(e) => setReservationForm({...reservationForm, time: e.target.value})}
                 >
-                  <option>18:00</option>
-                  <option>18:30</option>
-                  <option>19:00</option>
-                  <option>19:30</option>
-                  <option>20:00</option>
-                  <option>20:30</option>
-                  <option>21:00</option>
+                  <option value="12:00">12:00</option>
+                  <option value="12:30">12:30</option>
+                  <option value="13:00">13:00</option>
+                  <option value="13:30">13:30</option>
+                  <option value="14:00">14:00</option>
+                  <option value="18:00">18:00</option>
+                  <option value="18:30">18:30</option>
+                  <option value="19:00">19:00</option>
+                  <option value="19:30">19:30</option>
+                  <option value="20:00">20:00</option>
+                  <option value="20:30">20:30</option>
+                  <option value="21:00">21:00</option>
                 </select>
               </div>
               <div className="pt-form-group">
@@ -1048,23 +1280,41 @@ export default function PremiumTemplate({
                 <select
                   className="pt-form-select"
                   value={reservationForm.guests}
-                  onChange={(e) => setReservationForm({...reservationForm, guests: e.target.value})}
+                  onChange={(e) => setReservationForm({...reservationForm, guests: parseInt(e.target.value)})}
                 >
-                  <option>1 persona</option>
-                  <option>2 personas</option>
-                  <option>3 personas</option>
-                  <option>4 personas</option>
-                  <option>5+ personas</option>
+                  <option value="1">1 persona</option>
+                  <option value="2">2 personas</option>
+                  <option value="3">3 personas</option>
+                  <option value="4">4 personas</option>
+                  <option value="5">5 personas</option>
+                  <option value="6">6+ personas</option>
                 </select>
               </div>
             </div>
 
-            <button type="submit" className="pt-btn-reserve">
-              Confirmar Reserva
+            {/* Messages */}
+            {reservationError && (
+              <div className="pt-form-message pt-form-error">
+                ⚠️ {reservationError}
+              </div>
+            )}
+            {reservationSuccess && (
+              <div className="pt-form-message pt-form-success">
+                ✓ ¡Reserva confirmada! Te contactaremos pronto.
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="pt-btn-reserve"
+              disabled={reservationLoading}
+            >
+              {reservationLoading ? 'Enviando...' : 'Confirmar Reserva'}
             </button>
           </form>
         </div>
       </div>
+      )}
 
       {/* Footer */}
       <footer className="pt-footer">

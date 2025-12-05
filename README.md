@@ -1,16 +1,42 @@
-# Digitaliza - Plataforma de Menus Digitales
+# Digitaliza - Plataforma Link-in-Bio con Menu Digital
 
-Sistema SaaS para crear paginas web tipo Link-in-Bio y menus digitales para restaurantes y negocios locales.
+Sistema SaaS para crear paginas web tipo Link-in-Bio con menu digital, gestion de reservas/citas y enlaces personalizados para negocios locales.
 
 ## Estado del Proyecto
 
 | Aspecto | Estado |
 |---------|--------|
-| **Version** | 2.0.0-beta |
-| **Ultima actualizacion** | 2024-12-04 |
-| **Estado** | En desarrollo activo |
-| **Templates PREMIUM** | 8 nichos implementados |
-| **Templates PRO** | 8 nichos con admin panel |
+| **Version** | 2.1.0 |
+| **Ultima actualizacion** | 2024-12-05 |
+| **Estado** | MVP Completo |
+| **Templates** | 8+ nichos implementados |
+
+## Funcionalidades Principales
+
+### Para Negocios
+- **Pagina publica** con menu/catalogo digital
+- **Enlaces personalizados** (Instagram, WhatsApp, Uber Eats, etc.)
+- **Formulario de reservas/citas** integrado
+- **Codigo QR** descargable
+- **Temas premium** por nicho de negocio
+
+### Panel de Administracion (Mobile-First)
+- **Gestion de Menu/Productos/Servicios** - CRUD completo
+- **Gestion de Enlaces** - Agregar redes sociales y delivery
+- **Gestion de Reservas** - Ver, confirmar, cancelar, contactar por WhatsApp
+- **Codigo QR** - Generar y descargar
+- **Configuracion** - Ver informacion del negocio
+
+## Modos de Negocio
+
+El sistema se adapta automaticamente segun el tipo de negocio:
+
+| Modo | Ejemplo | Tab Items | Tab Reservas |
+|------|---------|-----------|--------------|
+| `restaurant` | Restaurante, Cafe | Menu | Reservas |
+| `services` | Barberia, Spa | Servicios | Citas |
+| `store` | Floreria, Tienda | Productos | *(No aplica)* |
+| `mixed` | Negocio mixto | Catalogo | Reservas/Citas |
 
 ## Stack Tecnologico
 
@@ -21,105 +47,131 @@ Sistema SaaS para crear paginas web tipo Link-in-Bio y menus digitales para rest
 | **Estilos** | Tailwind CSS |
 | **Animaciones** | Framer Motion |
 | **Base de Datos** | PostgreSQL (Neon) |
-| **ORM** | Prisma |
-| **Autenticacion** | NextAuth.js |
+| **ORM** | Prisma + @neondatabase/serverless |
+| **Autenticacion** | Custom (bcrypt + cookies) |
 
 ## Estructura del Proyecto
 
 ```
 digitaliza-unified/
 ├── src/
-│   ├── app/                    # App Router (Next.js 14)
-│   │   ├── (auth)/             # Rutas de autenticacion
-│   │   ├── admin/              # Panel de administracion
-│   │   ├── api/                # API Routes
-│   │   ├── demo/               # Demos de templates
-│   │   │   └── [template]/     # Ruta dinamica para templates
-│   │   └── [slug]/             # Paginas publicas de negocios
+│   ├── app/
+│   │   ├── api/
+│   │   │   ├── auth/              # Login/Logout
+│   │   │   ├── restaurants/       # CRUD Restaurantes
+│   │   │   │   └── [slug]/
+│   │   │   │       ├── menu/      # CRUD Items
+│   │   │   │       ├── links/     # CRUD Enlaces
+│   │   │   │       └── reservations/ # CRUD Reservas
+│   │   │   └── upload/            # Subida de imagenes
+│   │   ├── demo/                  # Demos de templates
+│   │   ├── register/              # Registro de negocios
+│   │   ├── login/                 # Login page
+│   │   └── [slug]/
+│   │       ├── page.tsx           # Pagina publica del negocio
+│   │       └── admin/page.tsx     # Panel de administracion
 │   ├── components/
-│   │   ├── landing/            # Componentes de landing page
-│   │   ├── templates/          # Templates de negocios (19 templates)
-│   │   └── ui/                 # Componentes UI reutilizables
-│   ├── lib/                    # Utilidades y configuracion
-│   └── types/                  # Tipos TypeScript
-├── prisma/                     # Schema de base de datos
-├── public/                     # Assets estaticos
-└── docs/                       # Documentacion adicional
+│   │   ├── templates/             # Templates de negocios
+│   │   ├── landing/               # Componentes de landing
+│   │   ├── QRGenerator.tsx        # Generador de QR
+│   │   └── ui/                    # Componentes reutilizables
+│   ├── lib/
+│   │   ├── db.ts                  # Conexion a Neon
+│   │   ├── auth.ts                # Funciones de autenticacion
+│   │   ├── themes.ts              # Configuracion de temas
+│   │   ├── business-config.ts     # Config por tipo de negocio
+│   │   ├── sample-menu-items.ts   # Items de ejemplo por tema
+│   │   └── validations.ts         # Schemas Zod
+│   └── types/                     # Tipos TypeScript
+├── prisma/
+│   └── schema.prisma              # Modelo de datos
+└── public/                        # Assets estaticos
 ```
 
----
+## Modelo de Datos
 
-## Templates Disponibles
+```prisma
+model Restaurant {
+  id           String        @id
+  slug         String        @unique
+  name         String
+  phone        String
+  whatsapp     String
+  email        String?
+  address      String
+  description  String?
+  logoUrl      String?
+  theme        String        @default("general")
+  businessMode String        @default("restaurant")  // restaurant|services|store|mixed
+  hours        String        @default("{}")
+  password     String        // bcrypt hash
+  isActive     Boolean       @default(true)
+  items        MenuItem[]
+  links        Link[]
+  reservations Reservation[]
+  sessions     Session[]
+}
 
-### 1. Templates PREMIUM (Recomendados)
-Basados en el diseno "SALVAJE MEDELLIN" - Elegante, oscuro, con colores de acento variables.
+model MenuItem {
+  id           String     @id
+  name         String
+  description  String?
+  price        Decimal
+  imageUrl     String?
+  category     String
+  available    Boolean    @default(true)
+  order        Int        @default(0)
+  restaurantId String
+}
 
-| Nicho | Ruta | Color Acento |
-|-------|------|--------------|
-| Barberia | `/demo/barberia-premium` | Dorado (#d4a853) |
-| Italiano | `/demo/italian-premium` | Verde (#22c55e) |
-| Mexicano | `/demo/mexican-premium` | Rojo (#dc2626) |
-| Hamburguesas | `/demo/hamburguesa-premium` | Naranja (#f97316) |
-| Spa | `/demo/spa-premium` | Teal (#14b8a6) |
-| Salon | `/demo/salon-premium` | Rosa (#ec4899) |
-| Floreria | `/demo/floreria-premium` | Rose (#f43f5e) |
-| Vegetariano | `/demo/vegetariano-premium` | Lima (#84cc16) |
+model Link {
+  id           String     @id
+  title        String
+  url          String
+  icon         String     @default("link")
+  isActive     Boolean    @default(true)
+  order        Int        @default(0)
+  clicks       Int        @default(0)
+  restaurantId String
+}
 
-**Caracteristicas:**
-- Header sticky con logo (emoji) y navegacion
-- Categorias de menu colapsables con animacion
-- Modal de detalle de platos (slide-up desde abajo)
-- Formulario de reservaciones con calendario de 14 dias
-- Botones CTA: WhatsApp, Llamar, Instagram
-- Animaciones CSS elegantes (slideDown, slideUp, fadeIn)
-- Hover effects premium en cards
-- 100% Mobile-first responsive
-- Scrollbar personalizado
+model Reservation {
+  id           String   @id
+  name         String
+  phone        String
+  email        String?
+  date         DateTime
+  time         String
+  guests       Int
+  notes        String?
+  status       String   @default("pending")  // pending|confirmed|completed|cancelled
+  restaurantId String
+}
+```
 
-### 2. Templates PRO (Con Panel Admin)
-Templates con vista de cliente + panel de administracion integrado (split-view en desktop).
+## API Endpoints
 
-| Nicho | Ruta |
-|-------|------|
-| Barberia | `/demo/barberia-pro` |
-| Italiano | `/demo/italian-pro` |
-| Mexicano | `/demo/mexican-pro` |
-| Hamburguesas | `/demo/hamburguesa-pro` |
-| Spa | `/demo/spa-pro` |
-| Salon | `/demo/salon-pro` |
-| Floreria | `/demo/floreria-pro` |
-| Vegetariano | `/demo/vegetariano-pro` |
+### Publicos
+| Metodo | Ruta | Descripcion |
+|--------|------|-------------|
+| GET | `/api/restaurants/[slug]` | Obtener negocio y menu |
+| GET | `/api/restaurants/[slug]/links` | Obtener enlaces |
+| POST | `/api/restaurants/[slug]/reservations` | Crear reserva |
 
-**Caracteristicas Admin Panel:**
-- Tab Menu: Agregar, editar, eliminar items
-- Tab Reservaciones: Ver y gestionar reservas
-- Tab Configuracion: Editar datos del negocio
+### Protegidos (requieren sesion)
+| Metodo | Ruta | Descripcion |
+|--------|------|-------------|
+| POST | `/api/restaurants` | Registrar negocio |
+| PUT | `/api/restaurants/[slug]` | Actualizar negocio |
+| POST/PUT/DELETE | `/api/restaurants/[slug]/menu/[id]` | CRUD items |
+| POST/PUT/DELETE | `/api/restaurants/[slug]/links/[id]` | CRUD enlaces |
+| GET/PUT/DELETE | `/api/restaurants/[slug]/reservations/[id]` | CRUD reservas |
 
-### 3. Templates Link-in-Bio (Simples)
-Templates estilo Linktree para negocios.
-
-| Nicho | Ruta |
-|-------|------|
-| Barberia | `/demo/barberia` |
-| Italiano | `/demo/italian` |
-| Mexicano | `/demo/mexican` |
-| Hamburguesas | `/demo/hamburguesa` |
-| Spa | `/demo/spa` |
-| Salon de Belleza | `/demo/salon-belleza` |
-| Floreria | `/demo/floreria` |
-| Vegetariano | `/demo/vegetariano` |
-
-### 4. Templates Legacy (Menu con imagenes)
-Templates clasicos estilo menu de restaurante con imagenes de platos.
-
-| Template | Ruta |
-|----------|------|
-| Elegant | `/demo/elegant` |
-| Modern | `/demo/modern` |
-| Artisan | `/demo/artisan` |
-| Luxury | `/demo/luxury` |
-
----
+### Auth
+| Metodo | Ruta | Descripcion |
+|--------|------|-------------|
+| POST | `/api/auth/login` | Iniciar sesion (slug + password) |
+| POST | `/api/auth/logout` | Cerrar sesion |
 
 ## Instalacion
 
@@ -131,13 +183,10 @@ npm install
 cp .env.example .env
 # Editar .env con credenciales de Neon
 
-# 3. Generar cliente Prisma
-npx prisma generate
+# 3. Sincronizar base de datos
+npx prisma db push
 
-# 4. Ejecutar migraciones
-npx prisma migrate dev
-
-# 5. Iniciar servidor de desarrollo
+# 4. Iniciar servidor de desarrollo
 npm run dev
 ```
 
@@ -158,167 +207,53 @@ NEXT_PUBLIC_BASE_URL="http://localhost:3000"
 | `npm run dev` | Servidor de desarrollo |
 | `npm run build` | Build de produccion |
 | `npm run start` | Iniciar servidor produccion |
-| `npm run lint` | Ejecutar linter |
 | `npx prisma studio` | GUI de base de datos |
 | `npx prisma db push` | Sincronizar schema |
 
----
+## Temas Disponibles
 
-## Arquitectura de Templates
-
-### PremiumTemplate (Recomendado)
-
-```typescript
-interface PremiumTemplateProps {
-  business: {
-    name: string
-    tagline?: string
-    phone: string
-    whatsapp: string
-    address: string
-    hours?: string
-    instagram?: string
-    logoEmoji?: string
-    rating?: number
-    reviewCount?: number
-  }
-  menuItems?: MenuItem[]
-  theme?: Partial<ThemeColors>
-}
-
-interface ThemeColors {
-  primaryDark: string      // Fondo principal (#0a0a0a)
-  secondaryDark: string    // Fondo secundario (#1a1a1a)
-  accentGold: string       // Color de acento
-  accentLight: string      // Acento claro
-  textLight: string        // Texto principal (#e8e8e8)
-  textMuted: string        // Texto secundario (#9ca3af)
-  border: string           // Bordes (rgba)
-}
-```
-
-### Uso de Temas Predefinidos
-
-```typescript
-import { premiumThemes } from '@/components/templates'
-
-// Temas disponibles
-premiumThemes.default      // Dorado clasico
-premiumThemes.italian      // Verde
-premiumThemes.mexican      // Rojo
-premiumThemes.hamburguesa  // Naranja
-premiumThemes.barberia     // Dorado oscuro
-premiumThemes.spa          // Teal
-premiumThemes.salon        // Rosa
-premiumThemes.floreria     // Rose
-premiumThemes.vegetariano  // Lima
-```
+| Tema | Nicho | Color Acento |
+|------|-------|--------------|
+| `general` | General | Azul |
+| `coffee` | Cafeteria | Ambar |
+| `italian` | Italiano | Verde |
+| `mexican` | Mexicano | Rojo |
+| `japanese` | Japones | Indigo |
+| `hamburguesa` | Hamburguesas | Naranja |
+| `barber` | Barberia | Dorado |
+| `spa` | Spa | Teal |
+| `salon` | Salon de Belleza | Rosa |
+| `floreria` | Floreria | Rose |
+| `vegetariano` | Vegetariano | Lima |
 
 ---
 
-## API Endpoints
+## Flujo de Usuario
 
-### Publicos
-| Metodo | Ruta | Descripcion |
-|--------|------|-------------|
-| GET | `/api/restaurants/[slug]` | Obtener restaurante y menu |
+### Registro
+1. Usuario llena formulario en `/register`
+2. Selecciona tipo de negocio y tema
+3. Sistema crea negocio con items de ejemplo
+4. Usuario recibe su `slug` unico
 
-### Protegidos (requieren sesion)
-| Metodo | Ruta | Descripcion |
-|--------|------|-------------|
-| POST | `/api/restaurants` | Crear restaurante |
-| PUT | `/api/restaurants/[slug]` | Actualizar restaurante |
-| POST | `/api/restaurants/[slug]/menu` | Crear item de menu |
-| PUT | `/api/restaurants/[slug]/menu/[id]` | Actualizar item |
-| DELETE | `/api/restaurants/[slug]/menu/[id]` | Eliminar item |
+### Administracion
+1. Usuario accede a `/{slug}/admin`
+2. Ingresa contrasena
+3. Panel muestra tabs segun modo de negocio:
+   - **Menu/Servicios/Productos**: Gestionar items
+   - **Enlaces**: Agregar redes sociales y delivery
+   - **Reservas/Citas**: Ver y gestionar reservaciones
+   - **QR**: Descargar codigo QR
+   - **Config**: Ver informacion del negocio
 
-### Auth
-| Metodo | Ruta | Descripcion |
-|--------|------|-------------|
-| POST | `/api/auth/login` | Iniciar sesion |
-| POST | `/api/auth/logout` | Cerrar sesion |
-
----
-
-## Modelo de Datos
-
-```prisma
-model Restaurant {
-  id          String     @id @default(cuid())
-  slug        String     @unique
-  name        String
-  phone       String
-  whatsapp    String
-  email       String?
-  address     String
-  description String?
-  logoUrl     String?
-  theme       String     @default("general")
-  hours       String     @default("{}")
-  password    String     // bcrypt hash
-  isActive    Boolean    @default(true)
-  items       MenuItem[]
-  sessions    Session[]
-}
-
-model MenuItem {
-  id           String     @id @default(cuid())
-  name         String
-  description  String?
-  price        Decimal
-  imageUrl     String?
-  category     String
-  available    Boolean    @default(true)
-  order        Int        @default(0)
-  restaurantId String
-  restaurant   Restaurant @relation(...)
-}
-```
-
----
-
-## Archivos de Templates
-
-```
-src/components/templates/
-├── index.ts                    # Exportaciones y tipos
-├── PremiumTemplate.tsx         # Template PREMIUM (recomendado)
-├── UnifiedProTemplate.tsx      # Template PRO con admin
-├── BarberiaTemplate.tsx        # Link-in-Bio Barberia
-├── ItalianTemplate.tsx         # Link-in-Bio Italiano
-├── MexicanTemplate.tsx         # Link-in-Bio Mexicano
-├── HamburguesaTemplate.tsx     # Link-in-Bio Hamburguesas
-├── SpaTemplate.tsx             # Link-in-Bio Spa
-├── SalonBellezaTemplate.tsx    # Link-in-Bio Salon
-├── FloreriaTemplate.tsx        # Link-in-Bio Floreria
-├── VegetarianoTemplate.tsx     # Link-in-Bio Vegetariano
-├── ElegantTemplate.tsx         # Legacy - Elegant
-├── ModernTemplate.tsx          # Legacy - Modern
-├── ArtisanTemplate.tsx         # Legacy - Artisan
-├── LuxuryTemplate.tsx          # Legacy - Luxury
-├── CoffeeTemplate.tsx          # Legacy - Coffee
-├── JapaneseTemplate.tsx        # Legacy - Japanese
-└── NailsTemplate.tsx           # Legacy - Nails
-```
-
----
-
-## Documentacion Adicional
-
-Ver carpeta `../docs/` para:
-- `PRD_PATHFINDERS_LABS.md` - Documento de requerimientos del producto
-- `BACKLOG-KISS-FINAL.md` - Backlog de desarrollo
-- `EVALUACION-ARQUITECTURA-KISS.md` - Evaluacion de arquitectura
-- `PLAN-DESARROLLO-DIGITALIZA.md` - Plan de desarrollo
-
----
-
-## Licencia
-
-Privado - Todos los derechos reservados
+### Pagina Publica
+1. Clientes acceden a `/{slug}`
+2. Ven menu/catalogo con categorias
+3. Pueden hacer reservas o contactar por WhatsApp
+4. Acceden a enlaces del negocio
 
 ---
 
 **Desarrollado por:** Pathfinders Labs
-**Ultima actualizacion:** 2024-12-04
-**Version:** 2.0.0-beta
+**Version:** 2.1.0
+**Licencia:** Privada

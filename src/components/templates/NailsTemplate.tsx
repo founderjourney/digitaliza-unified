@@ -217,7 +217,7 @@ export default function NailsTemplate({ restaurant, menuItems, isAdmin = false }
                 <h3 className="text-lg font-bold text-rose-700 mb-2 flex items-center gap-2">
                   🕒 Horarios
                 </h3>
-                <p className="text-gray-700">{restaurant.hours}</p>
+                <p className="text-gray-700">{typeof restaurant.hours === 'string' ? restaurant.hours : 'Lun-Sab: 9am-7pm'}</p>
               </div>
             </div>
           </motion.div>
@@ -386,7 +386,7 @@ export default function NailsTemplate({ restaurant, menuItems, isAdmin = false }
                   </h3>
                   <p className="text-gray-700 mb-4">{restaurant.address}</p>
                   <p className="text-gray-700 mb-6">
-                    <strong>Horarios:</strong> {restaurant.hours}
+                    <strong>Horarios:</strong> {typeof restaurant.hours === 'string' ? restaurant.hours : 'Lun-Sab: 9am-7pm'}
                   </p>
 
                   <h3 className="text-2xl font-bold text-rose-700 mb-4 flex items-center gap-2">
