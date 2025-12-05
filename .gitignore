@@ -44,3 +44,7 @@ test.txt
 next-env.d.ts
 
 /src/generated/prisma
+
+# dev scripts with credentials
+test-neon.mjs
+/scripts/

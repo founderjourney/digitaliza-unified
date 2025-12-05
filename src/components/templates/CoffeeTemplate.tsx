@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Restaurant, MenuItem } from '@/types'
-import { cn, formatPrice, generateWhatsAppUrl, formatHours } from '@/lib/utils'
+import { cn, formatPrice, generateWhatsAppUrl } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface CoffeeTemplateProps {
@@ -217,7 +217,7 @@ export default function CoffeeTemplate({ restaurant, menuItems, isAdmin = false 
                 <h3 className="text-lg font-bold text-amber-800 mb-2 flex items-center gap-2">
                   🕒 Horarios
                 </h3>
-                <p className="text-gray-700">{formatHours(restaurant.hours)}</p>
+                <p className="text-gray-700">{restaurant.hours}</p>
               </div>
             </div>
           </motion.div>
@@ -385,7 +385,7 @@ export default function CoffeeTemplate({ restaurant, menuItems, isAdmin = false 
                   </h3>
                   <p className="text-gray-700 mb-4">{restaurant.address}</p>
                   <p className="text-gray-700 mb-6">
-                    <strong>Horarios:</strong> {formatHours(restaurant.hours)}
+                    <strong>Horarios:</strong> {restaurant.hours}
                   </p>
 
                   <h3 className="text-2xl font-bold text-amber-800 mb-4 flex items-center gap-2">

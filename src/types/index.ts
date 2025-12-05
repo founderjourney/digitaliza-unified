@@ -8,6 +8,7 @@ export interface Restaurant {
   name: string
   phone: string
   whatsapp: string
+  email?: string
   address: string
   hours: Record<string, string>
   theme: CuisineType
@@ -66,13 +67,42 @@ export interface Order {
   notes?: string
 }
 
-export interface Reservation {
+export interface ReservationForm {
   customerName: string
   customerPhone: string
   date: string
   time: string
   partySize: number
   notes?: string
+}
+
+// Database model types
+export interface Link {
+  id: string
+  title: string
+  url: string
+  icon: string
+  order: number
+  isActive: boolean
+  clicks: number
+  restaurantId: string
+  createdAt?: Date
+  updatedAt?: Date
+}
+
+export interface Reservation {
+  id: string
+  name: string
+  phone: string
+  email?: string
+  date: Date | string
+  time: string
+  guests: number
+  status: 'pending' | 'confirmed' | 'completed' | 'cancelled'
+  notes?: string
+  restaurantId: string
+  createdAt?: Date
+  updatedAt?: Date
 }
 
 // Template configuration types

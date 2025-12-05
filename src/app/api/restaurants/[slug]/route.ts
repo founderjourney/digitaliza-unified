@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { sql } from '@/lib/db'
 import { getSessionFromCookies } from '@/lib/auth'
 import { updateRestaurantSchema } from '@/lib/validations'
 
@@ -11,45 +11,32 @@ export async function GET(
   try {
     const { slug } = await params
 
-    const restaurant = await prisma.restaurant.findUnique({
-      where: { slug, isActive: true },
-      select: {
-        id: true,
-        slug: true,
-        name: true,
-        phone: true,
-        whatsapp: true,
-        address: true,
-        description: true,
-        theme: true,
-        logoUrl: true,
-        hours: true,
-        items: {
-          where: { available: true },
-          select: {
-            id: true,
-            name: true,
-            description: true,
-            price: true,
-            imageUrl: true,
-            category: true,
-            available: true,
-            order: true,
-          },
-          orderBy: { order: 'asc' },
-        },
-      },
-    })
+    // Buscar restaurante
+    const restaurants = await sql`
+      SELECT id, slug, name, phone, whatsapp, address, description, theme, "logoUrl", hours
+      FROM "Restaurant"
+      WHERE slug = ${slug} AND "isActive" = true
+    `
 
-    if (!restaurant) {
+    if (restaurants.length === 0) {
       return NextResponse.json(
         { error: 'Restaurante no encontrado' },
         { status: 404 }
       )
     }
 
+    const restaurant = restaurants[0]
+
+    // Buscar items del menú
+    const menuItems = await sql`
+      SELECT id, name, description, price, "imageUrl", category, available, "order"
+      FROM "MenuItem"
+      WHERE "restaurantId" = ${restaurant.id} AND available = true
+      ORDER BY "order" ASC
+    `
+
     // Transformar items
-    const items = restaurant.items.map((item) => ({
+    const items = menuItems.map((item) => ({
       id: item.id,
       name: item.name,
       description: item.description,
@@ -100,17 +87,18 @@ export async function PUT(
     }
 
     // Buscar restaurante
-    const restaurant = await prisma.restaurant.findUnique({
-      where: { slug },
-      select: { id: true },
-    })
+    const restaurants = await sql`
+      SELECT id FROM "Restaurant" WHERE slug = ${slug}
+    `
 
-    if (!restaurant) {
+    if (restaurants.length === 0) {
       return NextResponse.json(
         { error: 'Restaurante no encontrado' },
         { status: 404 }
       )
     }
+
+    const restaurant = restaurants[0]
 
     // Verificar que la sesión pertenece a este restaurante
     if (session.restaurantId !== restaurant.id) {
@@ -131,29 +119,32 @@ export async function PUT(
       )
     }
 
-    // Actualizar restaurante
-    const { hours, ...restData } = validationResult.data
-    const updated = await prisma.restaurant.update({
-      where: { id: restaurant.id },
-      data: {
-        ...restData,
-        ...(hours && { hours: hours as Record<string, string> }),
-      },
-      select: {
-        id: true,
-        slug: true,
-        name: true,
-        phone: true,
-        whatsapp: true,
-        address: true,
-        description: true,
-        theme: true,
-        logoUrl: true,
-        hours: true,
-      },
-    })
+    const { name, phone, whatsapp, email, address, description, hours } = validationResult.data
+    const now = new Date().toISOString()
 
-    return NextResponse.json(updated)
+    // Actualizar restaurante
+    await sql`
+      UPDATE "Restaurant"
+      SET
+        name = COALESCE(${name}, name),
+        phone = COALESCE(${phone}, phone),
+        whatsapp = COALESCE(${whatsapp}, whatsapp),
+        email = COALESCE(${email}, email),
+        address = COALESCE(${address}, address),
+        description = COALESCE(${description}, description),
+        hours = COALESCE(${hours ? JSON.stringify(hours) : null}, hours),
+        "updatedAt" = ${now}
+      WHERE id = ${restaurant.id}
+    `
+
+    // Obtener datos actualizados
+    const updated = await sql`
+      SELECT id, slug, name, phone, whatsapp, address, description, theme, "logoUrl", hours
+      FROM "Restaurant"
+      WHERE id = ${restaurant.id}
+    `
+
+    return NextResponse.json(updated[0])
   } catch (error) {
     console.error('Error updating restaurant:', error)
     return NextResponse.json(

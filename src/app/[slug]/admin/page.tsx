@@ -3,32 +3,35 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
-import { Modal } from '@/components/ui/Modal'
 import { QRGenerator } from '@/components/QRGenerator'
 import { getTheme } from '@/lib/themes'
+import { getBusinessConfig } from '@/lib/business-config'
 import type { Restaurant, MenuItem } from '@/types'
 
-type ViewMode = 'login' | 'dashboard' | 'qr' | 'add-item' | 'edit-item'
+type TabType = 'menu' | 'qr' | 'settings'
 
 export default function AdminPage() {
   const params = useParams()
   const slug = params.slug as string
 
-  const [viewMode, setViewMode] = useState<ViewMode>('login')
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null)
   const [items, setItems] = useState<MenuItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
 
   // Login state
   const [password, setPassword] = useState('')
   const [loginError, setLoginError] = useState('')
   const [loginLoading, setLoginLoading] = useState(false)
 
+  // Tab state
+  const [activeTab, setActiveTab] = useState<TabType>('menu')
+
   // Item form state
-  const [editingItem, setEditingItem] = useState<MenuItem | null>(null)
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [editingItemId, setEditingItemId] = useState<string | null>(null)
   const [itemForm, setItemForm] = useState({
     name: '',
     description: '',
@@ -38,21 +41,26 @@ export default function AdminPage() {
   })
   const [itemFormLoading, setItemFormLoading] = useState(false)
 
+  // Get business config
+  const businessConfig = restaurant ? getBusinessConfig(restaurant.theme) : getBusinessConfig('general')
+  const theme = restaurant ? getTheme(restaurant.theme) : getTheme('general')
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
+  const menuUrl = `${baseUrl}/${slug}`
+
   // Check auth and load data
   const checkAuth = useCallback(async () => {
     try {
       const res = await fetch(`/api/restaurants/${slug}`)
       if (res.ok) {
         const data = await res.json()
-        // Check if authenticated (has full data)
         if (data.restaurant || data.id) {
           setRestaurant(data.restaurant || data)
           setItems(data.items || [])
-          setViewMode('dashboard')
+          setIsAuthenticated(true)
         }
       }
     } catch {
-      // Not authenticated or error
+      // Not authenticated
     } finally {
       setIsLoading(false)
     }
@@ -61,6 +69,21 @@ export default function AdminPage() {
   useEffect(() => {
     checkAuth()
   }, [checkAuth])
+
+  // Auto-clear messages
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => setError(''), 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [error])
+
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => setSuccessMessage(''), 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [successMessage])
 
   // Login handler
   const handleLogin = async (e: React.FormEvent) => {
@@ -78,13 +101,13 @@ export default function AdminPage() {
       const data = await res.json()
 
       if (!res.ok) {
-        setLoginError(data.error || 'Credenciales invalidas')
+        setLoginError(data.error || 'Credenciales inválidas')
         return
       }
 
       await checkAuth()
     } catch {
-      setLoginError('Error de conexion')
+      setLoginError('Error de conexión')
     } finally {
       setLoginLoading(false)
     }
@@ -97,13 +120,25 @@ export default function AdminPage() {
     } finally {
       setRestaurant(null)
       setItems([])
-      setViewMode('login')
+      setIsAuthenticated(false)
       setPassword('')
     }
   }
 
-  // Item CRUD handlers
+  // Reset form
+  const resetItemForm = () => {
+    setItemForm({ name: '', description: '', price: '', category: '', available: true })
+    setShowAddForm(false)
+    setEditingItemId(null)
+  }
+
+  // Add item
   const handleAddItem = async () => {
+    if (!itemForm.name || !itemForm.price || !itemForm.category) {
+      setError('Completa todos los campos requeridos')
+      return
+    }
+
     setItemFormLoading(true)
     try {
       const res = await fetch(`/api/restaurants/${slug}/menu`, {
@@ -118,49 +153,45 @@ export default function AdminPage() {
       if (res.ok) {
         const newItem = await res.json()
         setItems((prev) => [...prev, newItem])
-        setViewMode('dashboard')
         resetItemForm()
+        setSuccessMessage(`${businessConfig.itemLabel} agregado correctamente`)
       } else {
-        setError('Error al agregar item')
+        const errorData = await res.json().catch(() => ({}))
+        setError(errorData.error || `Error al agregar ${businessConfig.itemLabel.toLowerCase()}`)
       }
     } catch {
-      setError('Error de conexion')
+      setError('Error de conexión')
     } finally {
       setItemFormLoading(false)
     }
   }
 
-  const handleUpdateItem = async () => {
-    if (!editingItem) return
-    setItemFormLoading(true)
-
+  // Update item inline
+  const handleUpdateItem = async (itemId: string, updates: Partial<MenuItem>) => {
     try {
-      const res = await fetch(`/api/restaurants/${slug}/menu/${editingItem.id}`, {
+      const res = await fetch(`/api/restaurants/${slug}/menu/${itemId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...itemForm,
-          price: parseFloat(itemForm.price) || 0,
-        }),
+        body: JSON.stringify(updates),
       })
 
       if (res.ok) {
         const updated = await res.json()
         setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)))
-        setViewMode('dashboard')
-        resetItemForm()
+        setSuccessMessage('Cambios guardados')
+        setEditingItemId(null)
       } else {
-        setError('Error al actualizar item')
+        const errorData = await res.json().catch(() => ({}))
+        setError(errorData.error || 'Error al actualizar')
       }
     } catch {
-      setError('Error de conexion')
-    } finally {
-      setItemFormLoading(false)
+      setError('Error de conexión')
     }
   }
 
-  const handleDeleteItem = async (id: string) => {
-    if (!confirm('Eliminar este item?')) return
+  // Delete item
+  const handleDeleteItem = async (id: string, name: string) => {
+    if (!confirm(`¿Eliminar "${name}"?`)) return
 
     try {
       const res = await fetch(`/api/restaurants/${slug}/menu/${id}`, {
@@ -169,104 +200,78 @@ export default function AdminPage() {
 
       if (res.ok) {
         setItems((prev) => prev.filter((i) => i.id !== id))
+        setSuccessMessage('Eliminado correctamente')
       }
     } catch {
       setError('Error al eliminar')
     }
   }
 
+  // Toggle availability
   const handleToggleAvailability = async (item: MenuItem) => {
-    try {
-      const res = await fetch(`/api/restaurants/${slug}/menu/${item.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ available: !item.available }),
-      })
-
-      if (res.ok) {
-        setItems((prev) =>
-          prev.map((i) => (i.id === item.id ? { ...i, available: !i.available } : i))
-        )
-      }
-    } catch {
-      setError('Error al actualizar')
-    }
+    await handleUpdateItem(item.id, { available: !item.available })
   }
 
-  const resetItemForm = () => {
-    setEditingItem(null)
-    setItemForm({
-      name: '',
-      description: '',
-      price: '',
-      category: '',
-      available: true,
-    })
+  // Copy link
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(menuUrl)
+    setSuccessMessage('Link copiado!')
   }
 
-  const openEditItem = (item: MenuItem) => {
-    setEditingItem(item)
-    setItemForm({
-      name: item.name,
-      description: item.description || '',
-      price: String(item.price),
-      category: item.category,
-      available: item.available,
-    })
-    setViewMode('edit-item')
-  }
-
-  // Get theme for categories
-  const theme = restaurant ? getTheme(restaurant.theme) : getTheme('general')
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
-  const menuUrl = `${baseUrl}/${slug}`
-
+  // Loading state
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+      <div className="flex min-h-screen items-center justify-center bg-slate-900">
         <div className="text-center">
-          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
-          <p className="mt-4 text-gray-600">Cargando...</p>
+          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-amber-500 border-t-transparent" />
+          <p className="mt-4 text-slate-400">Cargando...</p>
         </div>
       </div>
     )
   }
 
   // LOGIN VIEW
-  if (viewMode === 'login') {
+  if (!isAuthenticated) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-blue-50 to-white px-4">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-slate-900 to-slate-950 px-4">
         <div className="w-full max-w-sm">
           <div className="mb-8 text-center">
-            <Link href="/" className="text-2xl font-bold text-blue-600">
-              Digitaliza
-            </Link>
-            <h1 className="mt-4 text-xl font-bold text-gray-900">Panel de Admin</h1>
-            <p className="mt-1 text-gray-600">{slug}</p>
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-3xl shadow-lg shadow-amber-500/20">
+              {businessConfig.emoji}
+            </div>
+            <h1 className="text-2xl font-bold text-white">Panel Admin</h1>
+            <p className="mt-1 text-slate-400">{slug}</p>
           </div>
 
           {loginError && (
-            <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+            <div className="mb-4 rounded-lg bg-red-500/10 border border-red-500/20 p-3 text-sm text-red-400">
               {loginError}
             </div>
           )}
 
           <form onSubmit={handleLogin} className="space-y-4">
-            <Input
-              label="Contrasena"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Tu contrasena"
-            />
-            <Button type="submit" fullWidth loading={loginLoading}>
-              Entrar
-            </Button>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-300">Contraseña</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Tu contraseña"
+                className="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loginLoading}
+              className="w-full rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 py-3 font-semibold text-slate-900 shadow-lg shadow-amber-500/20 transition-all hover:shadow-amber-500/30 disabled:opacity-50"
+            >
+              {loginLoading ? 'Entrando...' : 'Entrar'}
+            </button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-gray-600">
-            <Link href={`/${slug}`} className="text-blue-600 hover:underline">
-              Ver menu publico
+          <p className="mt-6 text-center text-sm text-slate-500">
+            <Link href={`/${slug}`} className="text-amber-500 hover:text-amber-400">
+              Ver {businessConfig.itemsLabel.toLowerCase()} público
             </Link>
           </p>
         </div>
@@ -276,202 +281,364 @@ export default function AdminPage() {
 
   // DASHBOARD VIEW
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b bg-white px-4 py-3 shadow-sm">
-        <div className="mx-auto flex max-w-2xl items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold text-gray-900">{restaurant?.name}</h1>
-            <p className="text-xs text-gray-500">Panel de Admin</p>
+      <header className="sticky top-0 z-50 bg-gradient-to-r from-slate-900 to-slate-800 border-b-2 border-amber-500/50">
+        <div className="px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-2xl shadow-lg">
+                {businessConfig.emoji}
+              </div>
+              <div>
+                <h1 className="text-lg font-bold text-white">{restaurant?.name}</h1>
+                <p className="text-xs text-slate-400">{businessConfig.label}</p>
+              </div>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800"
+            >
+              Salir
+            </button>
           </div>
-          <Button variant="ghost" size="sm" onClick={handleLogout}>
-            Salir
-          </Button>
         </div>
       </header>
 
-      {/* Quick actions */}
-      <div className="border-b bg-white px-4 py-3">
-        <div className="mx-auto flex max-w-2xl gap-2">
-          <Link
-            href={`/${slug}`}
-            target="_blank"
-            className="flex flex-1 min-h-[44px] items-center justify-center rounded-lg bg-gray-100 text-sm font-medium text-gray-700"
-          >
-            Ver Menu
-          </Link>
-          <button
-            onClick={() => setViewMode('qr')}
-            className="flex flex-1 min-h-[44px] items-center justify-center rounded-lg bg-gray-100 text-sm font-medium text-gray-700"
-          >
-            Codigo QR
-          </button>
-          <button
-            onClick={() => navigator.clipboard.writeText(menuUrl)}
-            className="flex flex-1 min-h-[44px] items-center justify-center rounded-lg bg-gray-100 text-sm font-medium text-gray-700"
-          >
-            Compartir
-          </button>
+      {/* Stats */}
+      <div className="bg-white border-b px-4 py-4">
+        <div className="grid grid-cols-3 gap-3">
+          <div className="rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 p-3 border-l-4 border-amber-500">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{businessConfig.itemsLabel}</p>
+            <p className="text-2xl font-bold text-amber-600">{items.length}</p>
+          </div>
+          <div className="rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 p-3 border-l-4 border-emerald-500">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Activos</p>
+            <p className="text-2xl font-bold text-emerald-600">{items.filter(i => i.available).length}</p>
+          </div>
+          <div className="rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 p-3 border-l-4 border-rose-500">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Agotados</p>
+            <p className="text-2xl font-bold text-rose-600">{items.filter(i => !i.available).length}</p>
+          </div>
         </div>
       </div>
 
-      {/* Error message */}
+      {/* Tabs */}
+      <div className="bg-white border-b px-4">
+        <div className="flex gap-1">
+          {[
+            { id: 'menu' as TabType, label: `📋 ${businessConfig.itemsLabel}` },
+            { id: 'qr' as TabType, label: '📱 QR Code' },
+            { id: 'settings' as TabType, label: '⚙️ Config' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 py-3 text-sm font-semibold transition-colors border-b-2 ${
+                activeTab === tab.id
+                  ? 'border-amber-500 text-amber-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Messages */}
       {error && (
-        <div className="mx-4 mt-4 max-w-2xl rounded-lg bg-red-50 p-3 text-sm text-red-700 sm:mx-auto">
+        <div className="mx-4 mt-4 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
           {error}
-          <button onClick={() => setError('')} className="ml-2 font-medium">
-            X
-          </button>
+        </div>
+      )}
+      {successMessage && (
+        <div className="mx-4 mt-4 rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-700">
+          ✓ {successMessage}
         </div>
       )}
 
-      {/* Items list */}
-      <main className="mx-auto max-w-2xl px-4 py-6">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Mis Productos</h2>
-          <Button size="sm" onClick={() => setViewMode('add-item')}>
-            + Agregar
-          </Button>
-        </div>
-
-        <div className="space-y-3">
-          {items.map((item) => (
-            <div
-              key={item.id}
-              className="rounded-lg bg-white p-4 shadow-sm"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <h3 className="font-medium text-gray-900">{item.name}</h3>
-                  <p className="text-sm text-gray-600">{item.category}</p>
-                  <p className="mt-1 font-semibold text-blue-600">${item.price}</p>
-                </div>
-                <span
-                  className={`rounded-full px-2 py-1 text-xs ${
-                    item.available
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-red-100 text-red-700'
-                  }`}
-                >
-                  {item.available ? 'Disponible' : 'Agotado'}
-                </span>
-              </div>
-              <div className="mt-3 flex gap-2">
-                <button
-                  onClick={() => handleToggleAvailability(item)}
-                  className="min-h-[36px] flex-1 rounded bg-gray-100 px-3 text-sm text-gray-700"
-                >
-                  {item.available ? 'Marcar Agotado' : 'Marcar Disponible'}
-                </button>
-                <button
-                  onClick={() => openEditItem(item)}
-                  className="min-h-[36px] rounded bg-blue-100 px-3 text-sm text-blue-700"
-                >
-                  Editar
-                </button>
-                <button
-                  onClick={() => handleDeleteItem(item.id)}
-                  className="min-h-[36px] rounded bg-red-100 px-3 text-sm text-red-700"
-                >
-                  Eliminar
-                </button>
-              </div>
-            </div>
-          ))}
-
-          {items.length === 0 && (
-            <div className="rounded-lg bg-white p-8 text-center text-gray-500">
-              No tienes productos aun.
-              <br />
+      {/* Tab Content */}
+      <main className="px-4 py-6">
+        {/* MENU TAB */}
+        {activeTab === 'menu' && (
+          <div>
+            {/* Header */}
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-800">Gestionar {businessConfig.itemsLabel}</h2>
               <button
-                onClick={() => setViewMode('add-item')}
-                className="mt-2 text-blue-600 hover:underline"
+                onClick={() => setShowAddForm(true)}
+                className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-amber-400"
               >
-                Agregar tu primer producto
+                + {businessConfig.addItemLabel}
               </button>
             </div>
-          )}
-        </div>
-      </main>
 
-      {/* QR Modal */}
-      <Modal
-        isOpen={viewMode === 'qr'}
-        onClose={() => setViewMode('dashboard')}
-        title="Tu Codigo QR"
-      >
-        <QRGenerator
-          url={menuUrl}
-          restaurantName={restaurant?.name || slug}
-          primaryColor={theme.colors.primary}
-        />
-      </Modal>
+            {/* Add Item Form */}
+            {showAddForm && (
+              <div className="mb-6 rounded-xl bg-white border border-slate-200 p-4 shadow-sm">
+                <h3 className="mb-4 text-base font-bold text-slate-800">{businessConfig.addItemLabel}</h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Nombre *</label>
+                    <input
+                      value={itemForm.name}
+                      onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
+                      placeholder={`Nombre del ${businessConfig.itemLabel.toLowerCase()}`}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Descripción</label>
+                    <input
+                      value={itemForm.description}
+                      onChange={(e) => setItemForm({ ...itemForm, description: e.target.value })}
+                      placeholder="Descripción breve"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Precio *</label>
+                      <input
+                        type="number"
+                        value={itemForm.price}
+                        onChange={(e) => setItemForm({ ...itemForm, price: e.target.value })}
+                        placeholder="0"
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Categoría *</label>
+                      <select
+                        value={itemForm.category}
+                        onChange={(e) => setItemForm({ ...itemForm, category: e.target.value })}
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
+                      >
+                        <option value="">Seleccionar</option>
+                        {theme.categories.map((cat) => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={itemForm.available}
+                      onChange={(e) => setItemForm({ ...itemForm, available: e.target.checked })}
+                      className="h-4 w-4 rounded border-slate-300 text-amber-500"
+                    />
+                    <span className="text-sm text-slate-600">Disponible</span>
+                  </label>
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={handleAddItem}
+                      disabled={itemFormLoading}
+                      className="flex-1 rounded-lg bg-emerald-500 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-50"
+                    >
+                      {itemFormLoading ? 'Guardando...' : 'Guardar'}
+                    </button>
+                    <button
+                      onClick={resetItemForm}
+                      className="flex-1 rounded-lg bg-slate-200 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-300"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
-      {/* Add/Edit Item Modal */}
-      <Modal
-        isOpen={viewMode === 'add-item' || viewMode === 'edit-item'}
-        onClose={() => {
-          setViewMode('dashboard')
-          resetItemForm()
-        }}
-        title={editingItem ? 'Editar Producto' : 'Agregar Producto'}
-      >
-        <div className="space-y-4 p-4">
-          <Input
-            label="Nombre *"
-            value={itemForm.name}
-            onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
-            placeholder="Pizza Margherita"
-          />
-          <Input
-            label="Descripcion"
-            value={itemForm.description}
-            onChange={(e) => setItemForm({ ...itemForm, description: e.target.value })}
-            placeholder="Ingredientes o detalles"
-          />
-          <Input
-            label="Precio *"
-            type="number"
-            value={itemForm.price}
-            onChange={(e) => setItemForm({ ...itemForm, price: e.target.value })}
-            placeholder="12.00"
-          />
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
-              Categoria *
-            </label>
-            <select
-              value={itemForm.category}
-              onChange={(e) => setItemForm({ ...itemForm, category: e.target.value })}
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-base"
-            >
-              <option value="">Seleccionar categoria</option>
-              {theme.categories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
+            {/* Items List */}
+            <div className="space-y-3">
+              {items.map((item) => (
+                <div
+                  key={item.id}
+                  className={`rounded-xl bg-white border p-4 shadow-sm transition-colors ${
+                    editingItemId === item.id ? 'border-amber-500' : 'border-slate-200'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-slate-800 truncate">{item.name}</h3>
+                        <span
+                          className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
+                            item.available
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}
+                        >
+                          {item.available ? '✓ Activo' : '✕ Agotado'}
+                        </span>
+                      </div>
+                      {item.description && (
+                        <p className="mt-1 text-sm text-slate-500 line-clamp-1">{item.description}</p>
+                      )}
+                      <div className="mt-2 flex items-center gap-3 text-sm">
+                        <span className="font-bold text-amber-600">${Number(item.price).toLocaleString()}</span>
+                        <span className="text-slate-400">•</span>
+                        <span className="text-slate-500">{item.category}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="mt-3 flex gap-2 border-t border-slate-100 pt-3">
+                    <button
+                      onClick={() => handleToggleAvailability(item)}
+                      className={`flex-1 rounded-lg py-2 text-xs font-semibold ${
+                        item.available
+                          ? 'bg-red-50 text-red-700 hover:bg-red-100'
+                          : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                      }`}
+                    >
+                      {item.available ? 'Marcar Agotado' : 'Marcar Disponible'}
+                    </button>
+                    <button
+                      onClick={() => setEditingItemId(editingItemId === item.id ? null : item.id)}
+                      className="flex-1 rounded-lg bg-blue-50 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      onClick={() => handleDeleteItem(item.id, item.name)}
+                      className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+
+                  {/* Inline Edit Form */}
+                  {editingItemId === item.id && (
+                    <div className="mt-3 border-t border-slate-100 pt-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          defaultValue={item.name}
+                          placeholder="Nombre"
+                          className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+                          onBlur={(e) => {
+                            if (e.target.value !== item.name) {
+                              handleUpdateItem(item.id, { name: e.target.value })
+                            }
+                          }}
+                        />
+                        <input
+                          type="number"
+                          defaultValue={item.price}
+                          placeholder="Precio"
+                          className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+                          onBlur={(e) => {
+                            const newPrice = parseFloat(e.target.value)
+                            if (newPrice !== Number(item.price)) {
+                              handleUpdateItem(item.id, { price: newPrice })
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
               ))}
-            </select>
+
+              {items.length === 0 && !showAddForm && (
+                <div className="rounded-xl bg-white border border-slate-200 p-8 text-center">
+                  <p className="text-4xl mb-3">{businessConfig.emoji}</p>
+                  <p className="text-slate-500">No tienes {businessConfig.itemsLabel.toLowerCase()} aún.</p>
+                  <button
+                    onClick={() => setShowAddForm(true)}
+                    className="mt-3 text-amber-600 font-semibold hover:text-amber-700"
+                  >
+                    {businessConfig.addItemLabel}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={itemForm.available}
-              onChange={(e) => setItemForm({ ...itemForm, available: e.target.checked })}
-              className="h-5 w-5 rounded border-gray-300"
-            />
-            <span className="text-sm text-gray-700">Disponible</span>
-          </label>
-          <Button
-            fullWidth
-            loading={itemFormLoading}
-            onClick={editingItem ? handleUpdateItem : handleAddItem}
-            disabled={!itemForm.name || !itemForm.price || !itemForm.category}
-          >
-            {editingItem ? 'Guardar Cambios' : 'Agregar Producto'}
-          </Button>
-        </div>
-      </Modal>
+        )}
+
+        {/* QR TAB */}
+        {activeTab === 'qr' && (
+          <div className="max-w-sm mx-auto">
+            <div className="rounded-xl bg-white border border-slate-200 p-6 shadow-sm">
+              <h2 className="text-lg font-bold text-slate-800 text-center mb-4">Tu Código QR</h2>
+              <QRGenerator
+                url={menuUrl}
+                restaurantName={restaurant?.name || slug}
+                primaryColor={theme.colors.primary}
+              />
+              <div className="mt-6 space-y-3">
+                <button
+                  onClick={handleCopyLink}
+                  className="w-full rounded-lg bg-slate-100 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+                >
+                  📋 Copiar Link
+                </button>
+                <Link
+                  href={`/${slug}`}
+                  target="_blank"
+                  className="block w-full rounded-lg bg-amber-500 py-3 text-center text-sm font-semibold text-slate-900 hover:bg-amber-400"
+                >
+                  👁️ Ver {businessConfig.itemsLabel}
+                </Link>
+              </div>
+              <p className="mt-4 text-center text-xs text-slate-400">{menuUrl}</p>
+            </div>
+          </div>
+        )}
+
+        {/* SETTINGS TAB */}
+        {activeTab === 'settings' && (
+          <div className="max-w-sm mx-auto space-y-4">
+            <div className="rounded-xl bg-white border border-slate-200 p-4 shadow-sm">
+              <h3 className="font-bold text-slate-800 mb-3">📍 Información</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Nombre</span>
+                  <span className="text-slate-800 font-medium">{restaurant?.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Tipo</span>
+                  <span className="text-slate-800 font-medium">{businessConfig.label}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Teléfono</span>
+                  <span className="text-slate-800 font-medium">{restaurant?.phone}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">WhatsApp</span>
+                  <span className="text-slate-800 font-medium">{restaurant?.whatsapp}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Dirección</span>
+                  <span className="text-slate-800 font-medium text-right max-w-[60%]">{restaurant?.address}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-white border border-slate-200 p-4 shadow-sm">
+              <h3 className="font-bold text-slate-800 mb-3">🔗 Tu Link</h3>
+              <div className="rounded-lg bg-slate-100 p-3">
+                <p className="text-sm text-slate-600 break-all">{menuUrl}</p>
+              </div>
+              <button
+                onClick={handleCopyLink}
+                className="mt-3 w-full rounded-lg bg-amber-500 py-2 text-sm font-semibold text-slate-900 hover:bg-amber-400"
+              >
+                Copiar Link
+              </button>
+            </div>
+
+            <div className="rounded-xl bg-slate-100 border border-slate-200 p-4">
+              <p className="text-xs text-slate-500 text-center">
+                ¿Necesitas cambiar información?<br />
+                Contacta soporte: soporte@digitaliza.com
+              </p>
+            </div>
+          </div>
+        )}
+      </main>
     </div>
   )
 }

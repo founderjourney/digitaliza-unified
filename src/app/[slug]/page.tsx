@@ -1,9 +1,7 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import ItalianTemplate from '@/components/templates/ItalianTemplate'
-import JapaneseTemplate from '@/components/templates/JapaneseTemplate'
-import MexicanTemplate from '@/components/templates/MexicanTemplate'
-import CoffeeTemplate from '@/components/templates/CoffeeTemplate'
+import { PremiumTemplate } from '@/components/templates'
+import { getPremiumTheme, themes } from '@/lib/themes'
 import type { Restaurant, MenuItem } from '@/types'
 
 interface PageProps {
@@ -65,127 +63,130 @@ export default async function MenuPage({ params }: PageProps) {
   // Filter only available items for public view
   const availableItems = items.filter((item) => item.available)
 
-  // Select template based on theme
-  const theme = restaurant.theme || 'general'
+  // Get theme configuration
+  const themeKey = restaurant.theme || 'general'
+  const selectedTheme = getPremiumTheme(themeKey)
+  const themeConfig = themes[themeKey as keyof typeof themes] || themes.general
 
-  const templateProps = {
-    restaurant,
-    menuItems: availableItems,
-    isAdmin: false,
+  // Map restaurant data to business config format for PremiumTemplate
+  const businessConfig = {
+    name: restaurant.name,
+    tagline: restaurant.description || `Bienvenido a ${restaurant.name}`,
+    phone: restaurant.phone,
+    whatsapp: restaurant.whatsapp,
+    address: restaurant.address,
+    hours: typeof restaurant.hours === 'string' ? JSON.parse(restaurant.hours || '{}') : (restaurant.hours || {}),
+    instagram: '', // Can be added to restaurant model later
+    logoEmoji: themeConfig.emoji || '🏪',
+    rating: 4.8, // Default rating
+    reviewCount: 150, // Default review count
   }
 
-  switch (theme) {
-    case 'italian':
-      return <ItalianTemplate {...templateProps} />
-    case 'japanese':
-      return <JapaneseTemplate {...templateProps} />
-    case 'mexican':
-      return <MexicanTemplate {...templateProps} />
-    case 'coffee':
-      return <CoffeeTemplate {...templateProps} />
-    default:
-      // For general, barber, and other themes - use a simple template
-      return <GeneralTemplate {...templateProps} />
-  }
-}
-
-// Simple general template for themes without specific templates
-function GeneralTemplate({
-  restaurant,
-  menuItems,
-}: {
-  restaurant: Restaurant
-  menuItems: MenuItem[]
-}) {
-  const groupedItems = menuItems.reduce(
-    (acc, item) => {
-      const cat = item.category || 'General'
-      if (!acc[cat]) acc[cat] = []
-      acc[cat].push(item)
-      return acc
-    },
-    {} as Record<string, MenuItem[]>
-  )
-
-  const whatsappUrl = `https://wa.me/${restaurant.whatsapp.replace(/[^0-9]/g, '')}?text=${encodeURIComponent('Hola! Me gustaria hacer un pedido.')}`
+  // Map menu items to PremiumTemplate format
+  const formattedMenuItems = availableItems.map((item, index) => ({
+    id: item.id,
+    name: item.name,
+    description: item.description || '',
+    price: typeof item.price === 'string' ? parseFloat(item.price) : Number(item.price),
+    category: item.category || 'General',
+    time: '15-20 min',
+    emoji: getCategoryEmoji(item.category),
+    image: item.imageUrl || undefined,
+    available: item.available,
+  }))
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b bg-white px-4 py-4 shadow-sm">
-        <div className="mx-auto flex max-w-2xl items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">{restaurant.name}</h1>
-            <p className="text-sm text-gray-600">{restaurant.address}</p>
-          </div>
-          <a
-            href={whatsappUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-green-500 text-white"
-          >
-            WA
-          </a>
-        </div>
-      </header>
-
-      {/* Menu */}
-      <main className="mx-auto max-w-2xl px-4 py-6">
-        {Object.entries(groupedItems).map(([category, categoryItems]) => (
-          <section key={category} className="mb-8">
-            <h2 className="mb-4 text-lg font-semibold text-gray-900">{category}</h2>
-            <div className="space-y-3">
-              {categoryItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex justify-between rounded-lg bg-white p-4 shadow-sm"
-                >
-                  <div className="flex-1">
-                    <h3 className="font-medium text-gray-900">{item.name}</h3>
-                    {item.description && (
-                      <p className="mt-1 text-sm text-gray-600 line-clamp-2">
-                        {item.description}
-                      </p>
-                    )}
-                  </div>
-                  <div className="ml-4 text-right">
-                    <span className="font-semibold text-blue-600">${item.price}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        ))}
-
-        {menuItems.length === 0 && (
-          <div className="py-12 text-center text-gray-500">
-            Este menu esta vacio por ahora.
-          </div>
-        )}
-      </main>
-
-      {/* Footer */}
-      <footer className="fixed bottom-0 left-0 right-0 border-t bg-white p-4 shadow-lg">
-        <div className="mx-auto flex max-w-2xl gap-3">
-          <a
-            href={whatsappUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex flex-1 min-h-[44px] items-center justify-center rounded-lg bg-green-500 font-medium text-white"
-          >
-            Hacer Pedido
-          </a>
-          <a
-            href={`tel:${restaurant.phone}`}
-            className="flex min-h-[44px] min-w-[100px] items-center justify-center rounded-lg bg-gray-200 font-medium text-gray-700"
-          >
-            Llamar
-          </a>
-        </div>
-      </footer>
-
-      {/* Spacer for fixed footer */}
-      <div className="h-24" />
-    </div>
+    <PremiumTemplate
+      business={businessConfig}
+      menuItems={formattedMenuItems}
+      theme={selectedTheme}
+    />
   )
+}
+
+// Helper function to get emoji based on category
+function getCategoryEmoji(category: string | undefined): string {
+  if (!category) return '🍽️'
+
+  const categoryLower = category.toLowerCase()
+
+  const emojiMap: Record<string, string> = {
+    // Food categories
+    'entradas': '🥗',
+    'appetizers': '🥗',
+    'starters': '🥗',
+    'ensaladas': '🥬',
+    'salads': '🥬',
+    'sopas': '🍲',
+    'soups': '🍲',
+    'principales': '🍽️',
+    'main': '🍽️',
+    'platos fuertes': '🍖',
+    'carnes': '🥩',
+    'meat': '🥩',
+    'pollo': '🍗',
+    'chicken': '🍗',
+    'pescados': '🐟',
+    'fish': '🐟',
+    'mariscos': '🦐',
+    'seafood': '🦐',
+    'pastas': '🍝',
+    'pasta': '🍝',
+    'pizzas': '🍕',
+    'pizza': '🍕',
+    'hamburguesas': '🍔',
+    'burgers': '🍔',
+    'tacos': '🌮',
+    'burritos': '🌯',
+    'sushi': '🍣',
+    'postres': '🍰',
+    'desserts': '🍰',
+    'dulces': '🍬',
+    'sweets': '🍬',
+    'bebidas': '🥤',
+    'drinks': '🥤',
+    'cocktails': '🍸',
+    'cocteles': '🍸',
+    'cervezas': '🍺',
+    'beer': '🍺',
+    'vinos': '🍷',
+    'wine': '🍷',
+    'cafe': '☕',
+    'coffee': '☕',
+    'te': '🍵',
+    'tea': '🍵',
+    'jugos': '🧃',
+    'juice': '🧃',
+    'desayunos': '🍳',
+    'breakfast': '🍳',
+    'almuerzos': '🥪',
+    'lunch': '🥪',
+    // Service categories
+    'cortes': '✂️',
+    'haircuts': '✂️',
+    'barberia': '💈',
+    'barber': '💈',
+    'tratamientos': '🧴',
+    'treatments': '🧴',
+    'masajes': '💆',
+    'massage': '💆',
+    'manicure': '💅',
+    'pedicure': '🦶',
+    'facial': '🧖',
+    'flores': '🌸',
+    'flowers': '🌸',
+    'arreglos': '💐',
+    'arrangements': '💐',
+    'plantas': '🪴',
+    'plants': '🪴',
+  }
+
+  // Check if any key is included in the category
+  for (const [key, emoji] of Object.entries(emojiMap)) {
+    if (categoryLower.includes(key)) {
+      return emoji
+    }
+  }
+
+  return '🍽️'
 }

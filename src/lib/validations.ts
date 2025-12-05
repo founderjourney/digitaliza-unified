@@ -3,14 +3,26 @@
 
 import { z } from 'zod'
 
-// Registro de restaurante
+// Registro de restaurante - Todos los tipos de negocio
 export const registerSchema = z.object({
   name: z.string().min(2, 'Nombre muy corto').max(100),
   phone: z.string().min(8, 'Teléfono inválido'),
   whatsapp: z.string().min(8, 'WhatsApp inválido'),
   email: z.string().email('Email inválido').optional().or(z.literal('')),
   address: z.string().min(5, 'Dirección muy corta'),
-  theme: z.enum(['general', 'italian', 'japanese', 'mexican', 'coffee', 'barber']),
+  theme: z.enum([
+    'general',
+    'italian',
+    'japanese',
+    'mexican',
+    'coffee',
+    'barber',
+    'hamburguesa',
+    'spa',
+    'salon',
+    'floreria',
+    'vegetariano'
+  ]),
   password: z.string().min(6, 'Mínimo 6 caracteres'),
 })
 

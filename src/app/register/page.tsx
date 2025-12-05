@@ -125,7 +125,7 @@ export default function RegisterPage() {
             Digitaliza
           </Link>
           <h1 className="mt-4 text-2xl font-bold text-gray-900">
-            Crea tu Menu Digital
+            Crea tu Digitaliza
           </h1>
           <p className="mt-2 text-gray-600">
             Completa los datos de tu negocio
@@ -228,7 +228,7 @@ export default function RegisterPage() {
             loading={isLoading}
             className="mt-6"
           >
-            Crear Mi Menu Gratis
+            Crear Mi Digitaliza Gratis
           </Button>
         </form>
 

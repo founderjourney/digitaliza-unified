@@ -1,450 +1,161 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Restaurant, MenuItem } from '@/types'
-import { cn, formatPrice, generateWhatsAppUrl, formatHours } from '@/lib/utils'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 
-interface MexicanTemplateProps {
-  restaurant: Restaurant
-  menuItems: MenuItem[]
-  isAdmin?: boolean
+interface MenuItem {
+  id: string
+  name: string
+  price: string | number
+  description?: string
+  category: string
+  available?: boolean
 }
 
-export default function MexicanTemplate({ restaurant, menuItems, isAdmin = false }: MexicanTemplateProps) {
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-  const [windowWidth, setWindowWidth] = useState(400)
+interface MexicanTemplateProps {
+  restaurant: {
+    name: string
+    description?: string
+    phone: string
+    whatsapp: string
+    address: string
+    hours?: string | Record<string, string>
+    logoUrl?: string
+    rating?: number
+    reviewCount?: number
+    instagram?: string
+  }
+  menuItems?: MenuItem[]
+}
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setWindowWidth(window.innerWidth)
-      const handleResize = () => setWindowWidth(window.innerWidth)
-      window.addEventListener('resize', handleResize)
-      return () => window.removeEventListener('resize', handleResize)
-    }
-  }, [])
+export default function MexicanTemplate({
+  restaurant,
+  menuItems = []
+}: MexicanTemplateProps) {
 
-  // Group menu items by category
-  const categories = menuItems.reduce((acc, item) => {
-    if (!acc[item.category]) {
-      acc[item.category] = []
-    }
+  const whatsappUrl = (message: string = '¡Hola! Quiero hacer una reservación') => {
+    const phone = restaurant.whatsapp?.replace(/[^0-9]/g, '') || restaurant.phone?.replace(/[^0-9]/g, '')
+    return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+  }
+
+  const defaultMenuItems: MenuItem[] = [
+    { id: '1', name: 'Guacamole con Totopos', price: 25000, category: 'Entradas', available: true },
+    { id: '2', name: 'Nachos Supreme', price: 32000, category: 'Entradas', available: true },
+    { id: '3', name: 'Tacos al Pastor (3)', price: 28000, category: 'Tacos', available: true },
+    { id: '4', name: 'Tacos de Carnitas (3)', price: 30000, category: 'Tacos', available: true },
+    { id: '5', name: 'Burrito de Carne', price: 35000, category: 'Platos Fuertes', available: true },
+    { id: '6', name: 'Enchiladas Verdes', price: 38000, category: 'Platos Fuertes', available: false },
+    { id: '7', name: 'Margarita Clásica', price: 22000, category: 'Bebidas', available: true },
+  ]
+
+  const displayMenuItems = menuItems.length > 0 ? menuItems : defaultMenuItems
+
+  const menuByCategory = displayMenuItems.reduce((acc, item) => {
+    if (!acc[item.category]) acc[item.category] = []
     acc[item.category].push(item)
     return acc
   }, {} as Record<string, MenuItem[]>)
 
-  // Category translations and icons for Mexican cuisine
-  const categoryMap: Record<string, { name: string; icon: string; description: string }> = {
-    antojitos: { name: 'Antojitos', icon: '🌮', description: 'Tacos, quesadillas y más' },
-    platos: { name: 'Platos Fuertes', icon: '🍽️', description: 'Especialidades mexicanas' },
-    mariscos: { name: 'Mariscos', icon: '🦐', description: 'Del mar a tu mesa' },
-    postres: { name: 'Postres', icon: '🍮', description: 'Dulces tradicionales' },
-    bebidas: { name: 'Bebidas', icon: '🍹', description: 'Refrescos y cocteles' },
-    desayunos: { name: 'Desayunos', icon: '🥞', description: 'Mañanas mexicanas' }
+  const categoryEmojis: Record<string, string> = {
+    'Entradas': '🥑',
+    'Tacos': '🌮',
+    'Platos Fuertes': '🍛',
+    'Bebidas': '🍹',
+    'Postres': '🍮',
   }
 
-  const formatWhatsAppMessage = (type: 'reservation' | 'contact' = 'contact') => {
-    if (type === 'reservation') {
-      return `¡Hola ${restaurant.name}! 👋\n\nMe gustaría hacer una reservación:\n• Fecha: \n• Hora: \n• Número de personas: \n• Nombre: \n\n¡Gracias! 🌮`
-    }
-    return `¡Hola ${restaurant.name}! 👋\n\nMe gustaría obtener más información sobre sus servicios.\n\n¡Gracias! 🇲🇽`
+  const formatPrice = (price: string | number) => {
+    const numPrice = typeof price === 'string' ? parseFloat(price) : price
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0
+    }).format(numPrice)
   }
 
-  const whatsappUrl = (type: 'reservation' | 'contact' = 'contact') => {
-    return generateWhatsAppUrl(restaurant.whatsapp || restaurant.phone, formatWhatsAppMessage(type))
+  const formatHours = () => {
+    if (!restaurant.hours) return 'Lun-Dom: 12:00pm - 11:00pm'
+    if (typeof restaurant.hours === 'string') return restaurant.hours
+    return Object.entries(restaurant.hours).map(([day, time]) => `${day}: ${time}`).join(' | ')
   }
-
-  // Floating elements animation for Mexican vibe
-  const floatingElements = [
-    { emoji: '🌮', delay: 0, duration: 3 },
-    { emoji: '🌶️', delay: 1, duration: 4 },
-    { emoji: '🥑', delay: 2, duration: 3.5 },
-    { emoji: '🌯', delay: 0.5, duration: 4.5 },
-    { emoji: '🫔', delay: 1.5, duration: 3.8 },
-    { emoji: '🌵', delay: 2.5, duration: 4.2 }
-  ]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 relative overflow-hidden">
-      {/* Floating Mexican Elements */}
-      {floatingElements.map((element, index) => (
-        <motion.div
-          key={index}
-          className="absolute text-2xl opacity-30 pointer-events-none z-0"
-          initial={{ y: '100vh', x: Math.random() * windowWidth }}
-          animate={{
-            y: '-100px',
-            x: Math.random() * windowWidth
-          }}
-          transition={{
-            duration: element.duration,
-            delay: element.delay,
-            repeat: Infinity,
-            ease: 'linear'
-          }}
-        >
-          {element.emoji}
-        </motion.div>
-      ))}
-
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 bg-gradient-to-r from-red-600 via-green-600 to-red-600 shadow-lg z-50">
-        <div className="container mx-auto px-4 py-3">
-          <div className="flex justify-between items-center">
-            <motion.h1
-              className="text-2xl font-bold text-white flex items-center gap-2"
-              initial={{ opacity: 0, x: -50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5 }}
-            >
-              🇲🇽 {restaurant.name}
-            </motion.h1>
-
-            <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="md:hidden text-white p-2 rounded-lg hover:bg-white/10 transition-colors"
-              aria-label="Toggle menu"
-            >
-              <div className="w-6 h-6 flex flex-col justify-center space-y-1">
-                <motion.span
-                  className="block w-full h-0.5 bg-white origin-center transition-all"
-                  animate={isMenuOpen ? { rotate: 45, y: 6 } : { rotate: 0, y: 0 }}
-                />
-                <motion.span
-                  className="block w-full h-0.5 bg-white transition-all"
-                  animate={isMenuOpen ? { opacity: 0 } : { opacity: 1 }}
-                />
-                <motion.span
-                  className="block w-full h-0.5 bg-white origin-center transition-all"
-                  animate={isMenuOpen ? { rotate: -45, y: -6 } : { rotate: 0, y: 0 }}
-                />
-              </div>
-            </button>
-
-            {/* Desktop Menu */}
-            <div className="hidden md:flex space-x-6">
-              <a href="#menu" className="text-white hover:text-yellow-200 transition-colors font-medium">
-                Menú
-              </a>
-              <a href="#contact" className="text-white hover:text-yellow-200 transition-colors font-medium">
-                Contacto
-              </a>
-              <a
-                href={whatsappUrl('reservation')}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-yellow-500 text-red-800 px-4 py-2 rounded-full font-bold hover:bg-yellow-400 transition-colors flex items-center gap-2"
-              >
-                📱 Reservar
-              </a>
+    <div className="min-h-screen bg-gradient-to-b from-emerald-800 via-red-700 to-amber-600">
+      <div className="max-w-md mx-auto px-4 py-8">
+        <motion.div className="text-center mb-6" initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
+          {restaurant.logoUrl ? (
+            <img src={restaurant.logoUrl} alt={restaurant.name} className="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-amber-400 object-cover" />
+          ) : (
+            <div className="w-24 h-24 rounded-full mx-auto mb-4 bg-gradient-to-br from-red-600 to-amber-500 flex items-center justify-center border-4 border-white/20">
+              <span className="text-4xl">🌮</span>
             </div>
-          </div>
-        </div>
-
-        {/* Mobile Menu */}
-        <AnimatePresence>
-          {isMenuOpen && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="md:hidden bg-red-700 border-t border-red-500"
-            >
-              <div className="container mx-auto px-4 py-4 space-y-3">
-                <a
-                  href="#menu"
-                  className="block text-white hover:text-yellow-200 transition-colors font-medium"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  🌮 Menú
-                </a>
-                <a
-                  href="#contact"
-                  className="block text-white hover:text-yellow-200 transition-colors font-medium"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  📞 Contacto
-                </a>
-                <a
-                  href={whatsappUrl('reservation')}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block bg-yellow-500 text-red-800 px-4 py-2 rounded-full font-bold hover:bg-yellow-400 transition-colors text-center"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  📱 Hacer Reservación
-                </a>
-              </div>
-            </motion.div>
           )}
-        </AnimatePresence>
-      </nav>
-
-      {/* Hero Section */}
-      <section className="pt-20 pb-16 px-4 text-center relative z-10">
-        <div className="container mx-auto max-w-4xl">
-          <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            className="mb-8"
-          >
-            <h2 className="text-4xl md:text-6xl font-bold text-red-700 mb-4 flex items-center justify-center gap-4">
-              <span className="text-5xl md:text-7xl">🌮</span>
-              ¡Bienvenidos!
-              <span className="text-5xl md:text-7xl">🇲🇽</span>
-            </h2>
-            <p className="text-xl md:text-2xl text-red-600 font-medium">
-              {restaurant.description}
-            </p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 shadow-xl border-2 border-yellow-300"
-          >
-            <div className="grid md:grid-cols-2 gap-6 text-left">
-              <div>
-                <h3 className="text-lg font-bold text-red-700 mb-2 flex items-center gap-2">
-                  📍 Ubicación
-                </h3>
-                <p className="text-gray-700">{restaurant.address}</p>
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-red-700 mb-2 flex items-center gap-2">
-                  🕒 Horarios
-                </h3>
-                <p className="text-gray-700">{formatHours(restaurant.hours)}</p>
-              </div>
+          <h1 className="text-2xl font-bold text-white mb-1">{restaurant.name}</h1>
+          <p className="text-amber-200 text-sm mb-3">{restaurant.description || 'Auténtica Cocina Mexicana'}</p>
+          <div className="flex items-center justify-center gap-4 text-sm">
+            <span className="text-amber-100 flex items-center gap-1"><span>📍</span>{restaurant.address}</span>
+          </div>
+          {restaurant.rating && (
+            <div className="flex items-center justify-center gap-1 mt-2">
+              <span className="text-yellow-400">⭐</span>
+              <span className="text-white font-medium">{restaurant.rating}</span>
+              {restaurant.reviewCount && <span className="text-amber-200">({restaurant.reviewCount} reviews)</span>}
             </div>
-          </motion.div>
+          )}
+        </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-            className="mt-8 flex flex-col sm:flex-row gap-4 justify-center"
-          >
-            <a
-              href={whatsappUrl('reservation')}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-green-600 text-white px-8 py-4 rounded-full font-bold text-lg hover:bg-green-700 transition-all transform hover:scale-105 shadow-lg flex items-center justify-center gap-2"
-            >
-              📱 Reservar Mesa
+        <motion.div className="space-y-3 mb-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
+          <a href="#menu" className="flex items-center justify-between w-full p-4 bg-white/10 hover:bg-white/20 rounded-xl border border-white/20 transition-all group">
+            <div className="flex items-center gap-3"><span className="text-2xl">🌮</span><span className="text-white font-medium">Ver Menú</span></div>
+            <span className="text-white/50 group-hover:text-amber-400 transition-colors">→</span>
+          </a>
+          <a href={whatsappUrl('¡Hola! Quiero reservar mesa para [personas] el [fecha] a las [hora]')} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between w-full p-4 bg-red-600 hover:bg-red-500 rounded-xl transition-all group">
+            <div className="flex items-center gap-3"><span className="text-2xl">📅</span><span className="text-white font-bold">Reservar Mesa</span></div>
+            <span className="text-red-200 group-hover:text-white transition-colors">→</span>
+          </a>
+          <a href={whatsappUrl()} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between w-full p-4 bg-green-600 hover:bg-green-500 rounded-xl transition-all group">
+            <div className="flex items-center gap-3"><span className="text-2xl">💬</span><span className="text-white font-medium">WhatsApp</span></div>
+            <span className="text-green-200 group-hover:text-white transition-colors">→</span>
+          </a>
+          <a href={`tel:${restaurant.phone}`} className="flex items-center justify-between w-full p-4 bg-white/10 hover:bg-white/20 rounded-xl border border-white/20 transition-all group">
+            <div className="flex items-center gap-3"><span className="text-2xl">📞</span><span className="text-white font-medium">Llamar</span></div>
+            <span className="text-white/50 group-hover:text-amber-400 transition-colors">→</span>
+          </a>
+          {restaurant.instagram && (
+            <a href={restaurant.instagram} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between w-full p-4 bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-500 hover:to-pink-400 rounded-xl transition-all group">
+              <div className="flex items-center gap-3"><span className="text-2xl">📸</span><span className="text-white font-medium">Instagram</span></div>
+              <span className="text-white/70 group-hover:text-white transition-colors">→</span>
             </a>
-            <a
-              href={`tel:${restaurant.phone}`}
-              className="bg-red-600 text-white px-8 py-4 rounded-full font-bold text-lg hover:bg-red-700 transition-all transform hover:scale-105 shadow-lg flex items-center justify-center gap-2"
-            >
-              📞 Llamar
-            </a>
-          </motion.div>
-        </div>
-      </section>
+          )}
+        </motion.div>
 
-      {/* Menu Section */}
-      <section id="menu" className="py-12 px-4 relative z-10">
-        <div className="container mx-auto max-w-6xl">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            viewport={{ once: true }}
-            className="text-center mb-12"
-          >
-            <h2 className="text-4xl md:text-5xl font-bold text-red-700 mb-4 flex items-center justify-center gap-3">
-              🍽️ Nuestro Menú 🌶️
-            </h2>
-            <p className="text-xl text-red-600">Sabores auténticos de México</p>
-          </motion.div>
-
-          {/* Category Navigation */}
-          <div className="flex flex-wrap justify-center gap-3 mb-12">
-            <button
-              onClick={() => setSelectedCategory(null)}
-              className={cn(
-                "px-6 py-3 rounded-full font-medium transition-all transform hover:scale-105",
-                selectedCategory === null
-                  ? "bg-red-600 text-white shadow-lg"
-                  : "bg-white text-red-600 border-2 border-red-600 hover:bg-red-50"
-              )}
-            >
-              🌮 Todo el Menú
-            </button>
-            {Object.entries(categoryMap).map(([key, category]) => (
-              <button
-                key={key}
-                onClick={() => setSelectedCategory(key)}
-                className={cn(
-                  "px-6 py-3 rounded-full font-medium transition-all transform hover:scale-105",
-                  selectedCategory === key
-                    ? "bg-red-600 text-white shadow-lg"
-                    : "bg-white text-red-600 border-2 border-red-600 hover:bg-red-50"
-                )}
-              >
-                {category.icon} {category.name}
-              </button>
+        <motion.div id="menu" className="bg-white/10 rounded-2xl p-5 border border-white/20" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><span>📋</span>Menú</h2>
+          <div className="space-y-6">
+            {Object.entries(menuByCategory).map(([category, items]) => (
+              <div key={category}>
+                <h3 className="text-amber-400 font-semibold mb-3 flex items-center gap-2"><span>{categoryEmojis[category] || '🍽️'}</span>{category}</h3>
+                <div className="space-y-2">
+                  {items.map((item) => (
+                    <div key={item.id} className={`flex items-center justify-between p-3 rounded-lg ${item.available !== false ? 'bg-white/5' : 'bg-white/5 opacity-50'}`}>
+                      <div>
+                        <h4 className="text-white font-medium text-sm">{item.name}{item.available === false && <span className="ml-2 text-red-400 text-xs">(Agotado)</span>}</h4>
+                        {item.description && <p className="text-amber-200/60 text-xs">{item.description}</p>}
+                      </div>
+                      <span className={`font-bold text-sm ${item.available !== false ? 'text-amber-400' : 'text-gray-500 line-through'}`}>{formatPrice(item.price)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
+          <a href={whatsappUrl('¡Hola! Quiero reservar mesa')} target="_blank" rel="noopener noreferrer" className="mt-6 w-full block text-center p-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition-all">Reservar Ahora</a>
+        </motion.div>
 
-          {/* Menu Items */}
-          <div className="space-y-12">
-            {Object.entries(categories).map(([categoryKey, items]) => {
-              if (selectedCategory && selectedCategory !== categoryKey) return null
-
-              const category = categoryMap[categoryKey] || { name: categoryKey, icon: '🍽️', description: '' }
-
-              return (
-                <motion.div
-                  key={categoryKey}
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6 }}
-                  viewport={{ once: true }}
-                  className="bg-white/95 backdrop-blur-sm rounded-2xl p-8 shadow-xl border-2 border-yellow-300"
-                >
-                  <h3 className="text-3xl font-bold text-red-700 mb-6 flex items-center gap-3">
-                    <span className="text-4xl">{category.icon}</span>
-                    {category.name}
-                  </h3>
-                  {category.description && (
-                    <p className="text-red-600 mb-6 text-lg italic">{category.description}</p>
-                  )}
-
-                  <div className="grid gap-6">
-                    {items
-                      .sort((a, b) => (a.order || 0) - (b.order || 0))
-                      .map((item, index) => (
-                      <motion.div
-                        key={item.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        whileInView={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.5, delay: index * 0.1 }}
-                        viewport={{ once: true }}
-                        className={cn(
-                          "flex justify-between items-start gap-4 p-4 rounded-xl transition-all",
-                          item.available
-                            ? "hover:bg-yellow-50 border-l-4 border-yellow-400"
-                            : "opacity-50 grayscale"
-                        )}
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <h4 className="text-xl font-bold text-gray-900">
-                              {item.name}
-                            </h4>
-                            {!item.available && (
-                              <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-sm font-medium">
-                                No disponible
-                              </span>
-                            )}
-                          </div>
-                          {item.description && (
-                            <p className="text-gray-600 leading-relaxed">
-                              {item.description}
-                            </p>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          <span className="text-2xl font-bold text-red-600">
-                            {formatPrice(item.price)}
-                          </span>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                </motion.div>
-              )
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* Contact Section */}
-      <section id="contact" className="py-12 px-4 bg-gradient-to-r from-red-600 via-green-600 to-red-600 relative z-10">
-        <div className="container mx-auto max-w-4xl text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            viewport={{ once: true }}
-          >
-            <h2 className="text-4xl md:text-5xl font-bold text-white mb-8 flex items-center justify-center gap-3">
-              📱 ¡Contáctanos! 🇲🇽
-            </h2>
-
-            <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-8 shadow-xl border-2 border-yellow-300">
-              <div className="grid md:grid-cols-2 gap-8">
-                <div className="text-left">
-                  <h3 className="text-2xl font-bold text-red-700 mb-4 flex items-center gap-2">
-                    🏠 Visítanos
-                  </h3>
-                  <p className="text-gray-700 mb-4">{restaurant.address}</p>
-                  <p className="text-gray-700 mb-6">
-                    <strong>Horarios:</strong> {formatHours(restaurant.hours)}
-                  </p>
-
-                  <h3 className="text-2xl font-bold text-red-700 mb-4 flex items-center gap-2">
-                    📞 Llámanos
-                  </h3>
-                  <p className="text-gray-700">
-                    <a href={`tel:${restaurant.phone}`} className="text-red-600 hover:text-red-800 font-medium">
-                      {restaurant.phone}
-                    </a>
-                  </p>
-                </div>
-
-                <div className="text-left">
-                  <h3 className="text-2xl font-bold text-red-700 mb-4 flex items-center gap-2">
-                    💬 WhatsApp
-                  </h3>
-                  <p className="text-gray-700 mb-6">
-                    ¡Haz tu reservación por WhatsApp de manera rápida y sencilla!
-                  </p>
-
-                  <div className="space-y-3">
-                    <a
-                      href={whatsappUrl('reservation')}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block bg-green-600 text-white px-6 py-3 rounded-full font-bold hover:bg-green-700 transition-all transform hover:scale-105 text-center"
-                    >
-                      🌮 Hacer Reservación
-                    </a>
-                    <a
-                      href={whatsappUrl('contact')}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block bg-red-600 text-white px-6 py-3 rounded-full font-bold hover:bg-red-700 transition-all transform hover:scale-105 text-center"
-                    >
-                      💬 Enviar Mensaje
-                    </a>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Admin Panel */}
-      {isAdmin && (
-        <div className="fixed bottom-4 right-4 z-50">
-          <motion.button
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ duration: 0.3 }}
-            className="bg-red-600 text-white p-4 rounded-full shadow-lg hover:bg-red-700 transition-colors"
-            title="Panel de Administración"
-          >
-            ⚙️
-          </motion.button>
-        </div>
-      )}
+        <motion.div className="mt-6 text-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}>
+          <p className="text-amber-200/70 text-sm flex items-center justify-center gap-2"><span>🕒</span>{formatHours()}</p>
+        </motion.div>
+        <motion.div className="mt-8 text-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}>
+          <p className="text-white/30 text-xs">Hecho con Digitaliza</p>
+        </motion.div>
+      </div>
     </div>
   )
 }

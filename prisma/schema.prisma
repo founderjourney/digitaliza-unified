@@ -2,6 +2,7 @@
 
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
@@ -40,8 +41,10 @@ model Restaurant {
   updatedAt   DateTime @updatedAt
 
   // Relaciones
-  items       MenuItem[]
-  sessions    Session[]
+  items        MenuItem[]
+  sessions     Session[]
+  links        Link[]
+  reservations Reservation[]
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -84,4 +87,55 @@ model Session {
 
   @@index([token])
   @@index([restaurantId])
+}
+
+// ══════════════════════════════════════════════════════════════
+// MODELO 4: LINK (Enlaces estilo Linktree)
+// ══════════════════════════════════════════════════════════════
+model Link {
+  id           String   @id @default(cuid())
+  title        String
+  url          String
+  icon         String   @default("link") // instagram, ubereats, rappi, tiktok, whatsapp, web, menu, etc.
+  order        Int      @default(0)
+  isActive     Boolean  @default(true)
+  clicks       Int      @default(0)
+
+  // Relación
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  // Timestamps
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([restaurantId])
+  @@index([order])
+}
+
+// ══════════════════════════════════════════════════════════════
+// MODELO 5: RESERVATION (Reservas)
+// ══════════════════════════════════════════════════════════════
+model Reservation {
+  id           String   @id @default(cuid())
+  name         String
+  phone        String
+  email        String?
+  date         DateTime
+  time         String
+  guests       Int
+  status       String   @default("pending") // pending, confirmed, completed, cancelled
+  notes        String?
+
+  // Relación
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  // Timestamps
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([restaurantId])
+  @@index([date])
+  @@index([status])
 }

@@ -1,10 +1,10 @@
 // D1-05: Sistema de autenticación
-// Creado por DEV2 para desbloquear APIs
+// Actualizado para usar SQL directo con Neon HTTP driver
 
 import bcrypt from 'bcryptjs'
 import { cookies } from 'next/headers'
 import { NextRequest } from 'next/server'
-import { prisma } from './db'
+import { sql, generateId } from './db'
 
 const SALT_ROUNDS = 12
 const SESSION_DURATION_HOURS = 24
@@ -22,16 +22,15 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 
 // Crear sesión en BD + retornar token
 export async function createSession(restaurantId: string): Promise<{ token: string; expiresAt: Date }> {
+  const id = generateId()
   const token = crypto.randomUUID()
   const expiresAt = new Date(Date.now() + SESSION_DURATION_HOURS * 60 * 60 * 1000)
+  const now = new Date().toISOString()
 
-  await prisma.session.create({
-    data: {
-      token,
-      expiresAt,
-      restaurantId,
-    },
-  })
+  await sql`
+    INSERT INTO "Session" (id, token, "expiresAt", "restaurantId", "createdAt")
+    VALUES (${id}, ${token}, ${expiresAt.toISOString()}, ${restaurantId}, ${now})
+  `
 
   return { token, expiresAt }
 }
@@ -44,12 +43,20 @@ export async function verifySession(request: NextRequest): Promise<{ restaurantI
     return null
   }
 
-  const session = await prisma.session.findUnique({
-    where: { token },
-    select: { restaurantId: true, expiresAt: true },
-  })
+  const sessions = await sql`
+    SELECT "restaurantId", "expiresAt"
+    FROM "Session"
+    WHERE token = ${token}
+  `
 
-  if (!session || session.expiresAt < new Date()) {
+  if (sessions.length === 0) {
+    return null
+  }
+
+  const session = sessions[0]
+  const expiresAt = new Date(session.expiresAt)
+
+  if (expiresAt < new Date()) {
     return null
   }
 
@@ -65,12 +72,20 @@ export async function getSessionFromCookies(): Promise<{ restaurantId: string } 
     return null
   }
 
-  const session = await prisma.session.findUnique({
-    where: { token },
-    select: { restaurantId: true, expiresAt: true },
-  })
+  const sessions = await sql`
+    SELECT "restaurantId", "expiresAt"
+    FROM "Session"
+    WHERE token = ${token}
+  `
 
-  if (!session || session.expiresAt < new Date()) {
+  if (sessions.length === 0) {
+    return null
+  }
+
+  const session = sessions[0]
+  const expiresAt = new Date(session.expiresAt)
+
+  if (expiresAt < new Date()) {
     return null
   }
 
@@ -79,22 +94,23 @@ export async function getSessionFromCookies(): Promise<{ restaurantId: string } 
 
 // Eliminar sesión
 export async function deleteSession(token: string): Promise<void> {
-  await prisma.session.delete({
-    where: { token },
-  }).catch(() => {
+  try {
+    await sql`
+      DELETE FROM "Session"
+      WHERE token = ${token}
+    `
+  } catch {
     // Si la sesión no existe, ignorar el error
-  })
+  }
 }
 
 // Limpiar sesiones expiradas (opcional, para cron)
 export async function cleanExpiredSessions(): Promise<void> {
-  await prisma.session.deleteMany({
-    where: {
-      expiresAt: {
-        lt: new Date(),
-      },
-    },
-  })
+  const now = new Date().toISOString()
+  await sql`
+    DELETE FROM "Session"
+    WHERE "expiresAt" < ${now}
+  `
 }
 
 // Configuración de cookie para respuestas

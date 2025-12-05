@@ -6,7 +6,6 @@ import { TemplateProps, MenuItem } from '@/types'
 import { useAdminAuth } from '@/hooks/useAdminAuth'
 import AdminLogin from '@/components/auth/AdminLogin'
 import AdminPanel from '@/components/admin/AdminPanel'
-import { formatHours } from '@/lib/utils'
 
 export default function JapaneseTemplate({ restaurant, menuItems, isAdmin = false }: TemplateProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -459,7 +458,7 @@ export default function JapaneseTemplate({ restaurant, menuItems, isAdmin = fals
               >
                 <div className="text-3xl mb-2">🕒</div>
                 <h3 className="text-lg font-semibold mb-1">Horarios</h3>
-                <p>{formatHours(restaurant.hours)}</p>
+                <p>{restaurant.hours}</p>
               </motion.div>
             </div>
 
@@ -519,7 +518,7 @@ export default function JapaneseTemplate({ restaurant, menuItems, isAdmin = fals
       <AnimatePresence>
         {showAdminLogin && (
           <AdminLogin
-            slug={restaurant.slug}
+            restaurantPassword={restaurant.password}
             onLogin={handleAdminLogin}
             onCancel={() => setShowAdminLogin(false)}
             restaurantName={restaurant.name}
@@ -532,17 +531,13 @@ export default function JapaneseTemplate({ restaurant, menuItems, isAdmin = fals
       <AnimatePresence>
         {adminPanelOpen && isAuthenticated && (
           <AdminPanel
-            restaurant={{...restaurant, hours: restaurant.hours || {}}}
-            items={localMenuItems}
-            onEditItem={async (id, data) => handleUpdateMenuItem({...localMenuItems.find(i => i.id === id)!, ...data})}
-            onDeleteItem={async (id) => handleDeleteMenuItem(id)}
-            onAddItem={async (data) => handleAddMenuItem(data as MenuItem)}
-            onToggleAvailability={async (id, available) => {
-              const item = localMenuItems.find(i => i.id === id)
-              if (item) handleUpdateMenuItem({...item, available})
-            }}
-            onUpdateRestaurant={async () => {}}
+            restaurant={restaurant}
+            menuItems={localMenuItems}
+            onUpdateMenuItem={handleUpdateMenuItem}
+            onDeleteMenuItem={handleDeleteMenuItem}
+            onAddMenuItem={handleAddMenuItem}
             onLogout={handleAdminLogout}
+            theme="japanese"
           />
         )}
       </AnimatePresence>

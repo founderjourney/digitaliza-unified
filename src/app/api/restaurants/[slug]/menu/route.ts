@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { sql, generateId } from '@/lib/db'
 import { getSessionFromCookies } from '@/lib/auth'
 import { menuItemSchema } from '@/lib/validations'
 
@@ -11,36 +11,31 @@ export async function GET(
   try {
     const { slug } = await params
 
-    // Buscar restaurante y sus items
-    const restaurant = await prisma.restaurant.findUnique({
-      where: { slug, isActive: true },
-      select: {
-        id: true,
-        items: {
-          select: {
-            id: true,
-            name: true,
-            description: true,
-            price: true,
-            imageUrl: true,
-            category: true,
-            available: true,
-            order: true,
-          },
-          orderBy: { order: 'asc' },
-        },
-      },
-    })
+    // Buscar restaurante
+    const restaurants = await sql`
+      SELECT id FROM "Restaurant"
+      WHERE slug = ${slug} AND "isActive" = true
+    `
 
-    if (!restaurant) {
+    if (restaurants.length === 0) {
       return NextResponse.json(
         { error: 'Restaurante no encontrado' },
         { status: 404 }
       )
     }
 
+    const restaurant = restaurants[0]
+
+    // Buscar items del menú
+    const menuItems = await sql`
+      SELECT id, name, description, price, "imageUrl", category, available, "order"
+      FROM "MenuItem"
+      WHERE "restaurantId" = ${restaurant.id}
+      ORDER BY "order" ASC
+    `
+
     // Transformar items
-    const items = restaurant.items.map((item) => ({
+    const items = menuItems.map((item) => ({
       id: item.id,
       name: item.name,
       description: item.description,
@@ -78,17 +73,19 @@ export async function POST(
     }
 
     // Buscar restaurante
-    const restaurant = await prisma.restaurant.findUnique({
-      where: { slug },
-      select: { id: true },
-    })
+    const restaurants = await sql`
+      SELECT id FROM "Restaurant"
+      WHERE slug = ${slug}
+    `
 
-    if (!restaurant) {
+    if (restaurants.length === 0) {
       return NextResponse.json(
         { error: 'Restaurante no encontrado' },
         { status: 404 }
       )
     }
+
+    const restaurant = restaurants[0]
 
     // Verificar que la sesión pertenece a este restaurante
     if (session.restaurantId !== restaurant.id) {
@@ -112,35 +109,32 @@ export async function POST(
     const { name, description, price, imageUrl, category, available } = validationResult.data
 
     // Obtener el orden máximo actual
-    const maxOrder = await prisma.menuItem.aggregate({
-      where: { restaurantId: restaurant.id },
-      _max: { order: true },
-    })
+    const maxOrderResult = await sql`
+      SELECT COALESCE(MAX("order"), 0) as max_order
+      FROM "MenuItem"
+      WHERE "restaurantId" = ${restaurant.id}
+    `
+    const maxOrder = maxOrderResult[0]?.max_order || 0
 
     // 3. Crear item en BD
-    const item = await prisma.menuItem.create({
-      data: {
-        name,
-        description: description || null,
-        price,
-        imageUrl: imageUrl || null,
-        category: category || 'General',
-        available,
-        order: (maxOrder._max.order || 0) + 1,
-        restaurantId: restaurant.id,
-      },
-    })
+    const id = generateId()
+    const now = new Date().toISOString()
+
+    await sql`
+      INSERT INTO "MenuItem" (id, name, description, price, "imageUrl", category, available, "order", "restaurantId", "createdAt", "updatedAt")
+      VALUES (${id}, ${name}, ${description || null}, ${price}, ${imageUrl || null}, ${category || 'General'}, ${available}, ${maxOrder + 1}, ${restaurant.id}, ${now}, ${now})
+    `
 
     // 4. Retornar item creado
     return NextResponse.json(
       {
-        id: item.id,
-        name: item.name,
-        description: item.description,
-        price: Number(item.price),
-        imageUrl: item.imageUrl,
-        category: item.category,
-        available: item.available,
+        id,
+        name,
+        description: description || null,
+        price: Number(price),
+        imageUrl: imageUrl || null,
+        category: category || 'General',
+        available,
       },
       { status: 201 }
     )

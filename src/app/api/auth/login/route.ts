@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { prisma } from '@/lib/db'
+import { sql } from '@/lib/db'
 import { verifyPassword, createSession, getSessionCookieOptions } from '@/lib/auth'
 import { loginSchema } from '@/lib/validations'
 
@@ -21,23 +21,20 @@ export async function POST(request: NextRequest) {
     const { slug, password } = validationResult.data
 
     // 2. Buscar restaurante por slug
-    const restaurant = await prisma.restaurant.findUnique({
-      where: { slug },
-      select: {
-        id: true,
-        slug: true,
-        name: true,
-        password: true,
-        isActive: true,
-      },
-    })
+    const restaurants = await sql`
+      SELECT id, slug, name, password, "isActive"
+      FROM "Restaurant"
+      WHERE slug = ${slug}
+    `
 
-    if (!restaurant || !restaurant.isActive) {
+    if (restaurants.length === 0 || !restaurants[0].isActive) {
       return NextResponse.json(
         { error: 'Credenciales inválidas' },
         { status: 401 }
       )
     }
+
+    const restaurant = restaurants[0]
 
     // 3. Verificar password con verifyPassword()
     const isValidPassword = await verifyPassword(password, restaurant.password)

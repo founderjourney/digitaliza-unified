@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { sql } from '@/lib/db'
 import { getSessionFromCookies } from '@/lib/auth'
 import { menuItemSchema } from '@/lib/validations'
 
@@ -21,24 +21,24 @@ export async function PUT(
     }
 
     // 2. Verificar que el item pertenece al restaurante correcto
-    const item = await prisma.menuItem.findUnique({
-      where: { id },
-      include: {
-        restaurant: {
-          select: { id: true, slug: true },
-        },
-      },
-    })
+    const items = await sql`
+      SELECT m.id, m.category, r.id as "restaurantId", r.slug
+      FROM "MenuItem" m
+      JOIN "Restaurant" r ON m."restaurantId" = r.id
+      WHERE m.id = ${id}
+    `
 
-    if (!item || item.restaurant.slug !== slug) {
+    if (items.length === 0 || items[0].slug !== slug) {
       return NextResponse.json(
         { error: 'Item no encontrado' },
         { status: 404 }
       )
     }
 
+    const item = items[0]
+
     // Verificar que la sesión pertenece a este restaurante
-    if (session.restaurantId !== item.restaurant.id) {
+    if (session.restaurantId !== item.restaurantId) {
       return NextResponse.json(
         { error: 'No tienes permiso para modificar este item' },
         { status: 403 }
@@ -57,29 +57,30 @@ export async function PUT(
     }
 
     const { name, description, price, imageUrl, category, available } = validationResult.data
+    const now = new Date().toISOString()
 
     // 4. Actualizar item
-    const updated = await prisma.menuItem.update({
-      where: { id },
-      data: {
-        name,
-        description: description || null,
-        price,
-        imageUrl: imageUrl || null,
-        category: category || item.category,
-        available,
-      },
-    })
+    await sql`
+      UPDATE "MenuItem"
+      SET name = ${name},
+          description = ${description || null},
+          price = ${price},
+          "imageUrl" = ${imageUrl || null},
+          category = ${category || item.category},
+          available = ${available},
+          "updatedAt" = ${now}
+      WHERE id = ${id}
+    `
 
     // 5. Retornar item actualizado
     return NextResponse.json({
-      id: updated.id,
-      name: updated.name,
-      description: updated.description,
-      price: Number(updated.price),
-      imageUrl: updated.imageUrl,
-      category: updated.category,
-      available: updated.available,
+      id,
+      name,
+      description: description || null,
+      price: Number(price),
+      imageUrl: imageUrl || null,
+      category: category || item.category,
+      available,
     })
   } catch (error) {
     console.error('Error updating menu item:', error)
@@ -108,16 +109,14 @@ export async function DELETE(
     }
 
     // 2. Verificar que el item pertenece al restaurante correcto
-    const item = await prisma.menuItem.findUnique({
-      where: { id },
-      include: {
-        restaurant: {
-          select: { id: true, slug: true },
-        },
-      },
-    })
+    const items = await sql`
+      SELECT m.id, r.id as "restaurantId", r.slug
+      FROM "MenuItem" m
+      JOIN "Restaurant" r ON m."restaurantId" = r.id
+      WHERE m.id = ${id}
+    `
 
-    if (!item || item.restaurant.slug !== slug) {
+    if (items.length === 0 || items[0].slug !== slug) {
       return NextResponse.json(
         { error: 'Item no encontrado' },
         { status: 404 }
@@ -125,7 +124,7 @@ export async function DELETE(
     }
 
     // Verificar que la sesión pertenece a este restaurante
-    if (session.restaurantId !== item.restaurant.id) {
+    if (session.restaurantId !== items[0].restaurantId) {
       return NextResponse.json(
         { error: 'No tienes permiso para eliminar este item' },
         { status: 403 }
@@ -133,9 +132,10 @@ export async function DELETE(
     }
 
     // 3. Eliminar item
-    await prisma.menuItem.delete({
-      where: { id },
-    })
+    await sql`
+      DELETE FROM "MenuItem"
+      WHERE id = ${id}
+    `
 
     // 4. Retornar { success: true }
     return NextResponse.json({ success: true })

@@ -1,18 +1,47 @@
-// D1-04: Singleton de Prisma Client
-// Optimizado para Neon PostgreSQL + Vercel Serverless
+// Cliente de base de datos usando Neon HTTP (sin Prisma adapter)
+// Este enfoque es más confiable para cold starts
 
-import { PrismaClient } from '@prisma/client'
+import { neon } from '@neondatabase/serverless'
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined
+const connectionString = process.env.DATABASE_URL!
+
+// Cliente SQL directo - funciona siempre
+export const sql = neon(connectionString)
+
+// Tipos para las tablas
+export interface Restaurant {
+  id: string
+  slug: string
+  name: string
+  phone: string
+  whatsapp: string
+  email: string | null
+  address: string
+  description: string | null
+  logoUrl: string | null
+  theme: string
+  hours: string
+  password: string
+  isActive: boolean
+  createdAt: Date
+  updatedAt: Date
 }
 
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
-  })
+export interface MenuItem {
+  id: string
+  name: string
+  description: string | null
+  price: number
+  imageUrl: string | null
+  category: string
+  available: boolean
+  order: number
+  restaurantId: string
+  createdAt: Date
+  updatedAt: Date
+}
 
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma
+// Helpers para generar IDs
+export function generateId(): string {
+  return crypto.randomUUID()
 }
