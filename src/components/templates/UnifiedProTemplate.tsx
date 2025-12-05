@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 // Types
@@ -153,7 +153,7 @@ export default function UnifiedProTemplate({
   const [activeSection, setActiveSection] = useState('menu')
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['all']))
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null)
-  const [showReservationModal, setShowReservationModal] = useState(false)
+  const [, setShowReservationModal] = useState(false)
   const [adminTab, setAdminTab] = useState<'menu' | 'reservations' | 'settings'>('menu')
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [reservationForm, setReservationForm] = useState({

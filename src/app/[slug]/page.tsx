@@ -83,7 +83,7 @@ export default async function MenuPage({ params }: PageProps) {
   }
 
   // Map menu items to PremiumTemplate format
-  const formattedMenuItems = availableItems.map((item, index) => ({
+  const formattedMenuItems = availableItems.map((item) => ({
     id: item.id,
     name: item.name,
     description: item.description || '',
