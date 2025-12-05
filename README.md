@@ -2,14 +2,23 @@
 
 Sistema SaaS para crear paginas web tipo Link-in-Bio con menu digital, gestion de reservas/citas y enlaces personalizados para negocios locales.
 
+## URLs de Produccion
+
+| Ambiente | URL |
+|----------|-----|
+| **Produccion** | https://digitaliza-unified-mosaiko-labs-projects.vercel.app |
+| **Repositorio** | https://github.com/founderjourney/digitaliza-unified |
+
 ## Estado del Proyecto
 
 | Aspecto | Estado |
 |---------|--------|
 | **Version** | 2.1.0 |
 | **Ultima actualizacion** | 2024-12-05 |
-| **Estado** | MVP Completo |
+| **Estado** | MVP Completo - Deployed |
 | **Templates** | 8+ nichos implementados |
+| **Hosting** | Vercel |
+| **Database** | Neon PostgreSQL |
 
 ## Funcionalidades Principales
 
@@ -251,6 +260,35 @@ NEXT_PUBLIC_BASE_URL="http://localhost:3000"
 2. Ven menu/catalogo con categorias
 3. Pueden hacer reservas o contactar por WhatsApp
 4. Acceden a enlaces del negocio
+
+---
+
+## Deploy a Vercel
+
+### Variables de Entorno Requeridas
+
+```env
+DATABASE_URL=postgresql://user:password@host/database?sslmode=require
+NEXT_PUBLIC_BASE_URL=https://tu-dominio.vercel.app
+```
+
+### Comandos de Deploy
+
+```bash
+# Deploy a produccion
+vercel --prod --yes
+
+# Ver estado de deployments
+vercel ls
+
+# Ver variables de entorno
+vercel env ls
+```
+
+### Notas Importantes
+
+- Si el sitio muestra "Authentication Required", desactiva Vercel Authentication en:
+  **Settings → Deployment Protection → Production → No Protection**
 
 ---
 
