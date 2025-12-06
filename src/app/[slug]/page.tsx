@@ -97,9 +97,17 @@ export default async function MenuPage({ params }: PageProps) {
     hours: typeof restaurant.hours === 'string' ? JSON.parse(restaurant.hours || '{}') : (restaurant.hours || {}),
     instagram: '', // Can be added to restaurant model later
     logoEmoji: themeConfig.emoji || '🏪',
+    logoUrl: restaurant.logoUrl || undefined,
     rating: 4.8, // Default rating
     reviewCount: 150, // Default review count
   }
+
+  // Custom colors from database (if set)
+  const customColors = (restaurant.customPrimaryColor || restaurant.customSecondaryColor || restaurant.customAccentColor) ? {
+    primary: restaurant.customPrimaryColor || undefined,
+    secondary: restaurant.customSecondaryColor || undefined,
+    accent: restaurant.customAccentColor || undefined,
+  } : undefined
 
   // Map menu items to PremiumTemplate format
   const formattedMenuItems = availableItems.map((item) => ({
@@ -112,6 +120,7 @@ export default async function MenuPage({ params }: PageProps) {
     emoji: getCategoryEmoji(item.category),
     image: item.imageUrl || undefined,
     available: item.available,
+    duration: item.duration ? Number(item.duration) : undefined,
   }))
 
   return (
@@ -122,6 +131,8 @@ export default async function MenuPage({ params }: PageProps) {
       links={activeLinks}
       slug={slug}
       businessMode={restaurant.businessMode || 'restaurant'}
+      restaurantId={restaurant.id}
+      customColors={customColors}
     />
   )
 }

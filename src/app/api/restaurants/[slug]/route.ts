@@ -13,7 +13,8 @@ export async function GET(
 
     // Buscar restaurante
     const restaurants = await sql`
-      SELECT id, slug, name, phone, whatsapp, address, description, theme, "businessMode", "logoUrl", hours
+      SELECT id, slug, name, phone, whatsapp, address, description, theme, "businessMode", "logoUrl", hours,
+             "customPrimaryColor", "customSecondaryColor", "customAccentColor"
       FROM "Restaurant"
       WHERE slug = ${slug} AND "isActive" = true
     `
@@ -29,7 +30,7 @@ export async function GET(
 
     // Buscar items del menú
     const menuItems = await sql`
-      SELECT id, name, description, price, "imageUrl", category, available, "order"
+      SELECT id, name, description, price, "imageUrl", category, available, "order", duration
       FROM "MenuItem"
       WHERE "restaurantId" = ${restaurant.id} AND available = true
       ORDER BY "order" ASC
@@ -45,6 +46,7 @@ export async function GET(
       category: item.category || 'General',
       available: item.available,
       order: item.order,
+      duration: item.duration || null,
     }))
 
     return NextResponse.json({
@@ -59,6 +61,9 @@ export async function GET(
       businessMode: restaurant.businessMode || 'restaurant',
       logoUrl: restaurant.logoUrl,
       hours: restaurant.hours || {},
+      customPrimaryColor: restaurant.customPrimaryColor,
+      customSecondaryColor: restaurant.customSecondaryColor,
+      customAccentColor: restaurant.customAccentColor,
       items,
     })
   } catch (error) {

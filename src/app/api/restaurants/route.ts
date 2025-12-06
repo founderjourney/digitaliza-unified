@@ -22,6 +22,11 @@ export async function POST(request: NextRequest) {
     const { name, phone, whatsapp, email, address, theme, password } = validationResult.data
     const businessMode = body.businessMode || 'restaurant' // Default to restaurant
 
+    // Colores personalizados (opcionales)
+    const customPrimaryColor = body.customPrimaryColor || null
+    const customSecondaryColor = body.customSecondaryColor || null
+    const customAccentColor = body.customAccentColor || null
+
     // 2. Generar slug único
     let slug = generateSlug(name)
 
@@ -51,9 +56,13 @@ export async function POST(request: NextRequest) {
 
     await sql`
       INSERT INTO "Restaurant" (
-        id, slug, name, phone, whatsapp, email, address, theme, "businessMode", password, hours, "isActive", "createdAt", "updatedAt"
+        id, slug, name, phone, whatsapp, email, address, theme, "businessMode", password, hours, "isActive",
+        "customPrimaryColor", "customSecondaryColor", "customAccentColor",
+        "createdAt", "updatedAt"
       ) VALUES (
-        ${id}, ${slug}, ${name}, ${phone}, ${whatsapp}, ${email || null}, ${address}, ${theme}, ${businessMode}, ${hashedPassword}, '{}', true, ${now}, ${now}
+        ${id}, ${slug}, ${name}, ${phone}, ${whatsapp}, ${email || null}, ${address}, ${theme}, ${businessMode}, ${hashedPassword}, '{}', true,
+        ${customPrimaryColor}, ${customSecondaryColor}, ${customAccentColor},
+        ${now}, ${now}
       )
     `
 
@@ -79,6 +88,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       {
+        id,
         slug,
         name,
         message: 'Restaurante creado exitosamente',

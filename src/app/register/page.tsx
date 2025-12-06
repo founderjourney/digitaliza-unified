@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { getThemeOptions, type ThemeKey } from '@/lib/themes'
+import { getThemeOptions, themes, type ThemeKey } from '@/lib/themes'
 import type { BusinessMode } from '@/types'
 
 interface FormData {
@@ -18,6 +19,10 @@ interface FormData {
   businessMode: BusinessMode
   password: string
   confirmPassword: string
+  // Branding personalizado
+  customPrimaryColor: string
+  customSecondaryColor: string
+  customAccentColor: string
 }
 
 const BUSINESS_MODES: { value: BusinessMode; label: string; emoji: string; description: string }[] = [
@@ -34,6 +39,7 @@ interface FormErrors {
 export default function RegisterPage() {
   const router = useRouter()
   const themeOptions = getThemeOptions()
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [formData, setFormData] = useState<FormData>({
     name: '',
@@ -45,11 +51,19 @@ export default function RegisterPage() {
     businessMode: 'restaurant',
     password: '',
     confirmPassword: '',
+    customPrimaryColor: '',
+    customSecondaryColor: '',
+    customAccentColor: '',
   })
 
   const [errors, setErrors] = useState<FormErrors>({})
   const [isLoading, setIsLoading] = useState(false)
   const [apiError, setApiError] = useState('')
+
+  // Logo state
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const [useCustomColors, setUseCustomColors] = useState(false)
 
   const validate = (): boolean => {
     const newErrors: FormErrors = {}
@@ -80,6 +94,38 @@ export default function RegisterPage() {
     return Object.keys(newErrors).length === 0
   }
 
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Validar tipo
+      if (!['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'].includes(file.type)) {
+        setApiError('Tipo de archivo no permitido. Use JPG, PNG, WebP o SVG.')
+        return
+      }
+      // Validar tamaño (2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        setApiError('El archivo es muy grande. Máximo 2MB.')
+        return
+      }
+
+      setLogoFile(file)
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setLogoPreview(reader.result as string)
+      }
+      reader.readAsDataURL(file)
+      setApiError('')
+    }
+  }
+
+  const removeLogo = () => {
+    setLogoFile(null)
+    setLogoPreview(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setApiError('')
@@ -89,6 +135,7 @@ export default function RegisterPage() {
     setIsLoading(true)
 
     try {
+      // 1. Crear el restaurante
       const res = await fetch('/api/restaurants', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -101,6 +148,10 @@ export default function RegisterPage() {
           theme: formData.theme,
           businessMode: formData.businessMode,
           password: formData.password,
+          // Colores personalizados (solo si están habilitados)
+          customPrimaryColor: useCustomColors && formData.customPrimaryColor ? formData.customPrimaryColor : undefined,
+          customSecondaryColor: useCustomColors && formData.customSecondaryColor ? formData.customSecondaryColor : undefined,
+          customAccentColor: useCustomColors && formData.customAccentColor ? formData.customAccentColor : undefined,
         }),
       })
 
@@ -109,6 +160,19 @@ export default function RegisterPage() {
       if (!res.ok) {
         setApiError(data.error || data.message || 'Error al crear el restaurante')
         return
+      }
+
+      // 2. Si hay logo, subirlo
+      if (logoFile && data.id) {
+        const logoFormData = new FormData()
+        logoFormData.append('file', logoFile)
+        logoFormData.append('restaurantId', data.id)
+        logoFormData.append('type', 'logo')
+
+        await fetch('/api/upload', {
+          method: 'POST',
+          body: logoFormData,
+        })
       }
 
       // Redirect to admin page
@@ -125,6 +189,14 @@ export default function RegisterPage() {
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: '' }))
     }
+  }
+
+  // Obtener colores del tema seleccionado para preview
+  const selectedTheme = themes[formData.theme]
+  const previewColors = {
+    primary: useCustomColors && formData.customPrimaryColor ? formData.customPrimaryColor : selectedTheme.colors.primary,
+    secondary: useCustomColors && formData.customSecondaryColor ? formData.customSecondaryColor : selectedTheme.colors.secondary,
+    accent: useCustomColors && formData.customAccentColor ? formData.customAccentColor : selectedTheme.colors.primary,
   }
 
   return (
@@ -242,6 +314,198 @@ export default function RegisterPage() {
               ))}
             </div>
           </div>
+
+          {/* ========== SECCIÓN DE BRANDING ========== */}
+          <div className="border-t border-gray-200 pt-4 mt-4">
+            <h3 className="text-lg font-semibold text-gray-800 mb-3">
+              Personaliza tu marca (Opcional)
+            </h3>
+
+            {/* Logo Upload */}
+            <div className="mb-4">
+              <label className="mb-2 block text-sm font-medium text-gray-700">
+                Logo de tu negocio
+              </label>
+              <div className="flex items-center gap-4">
+                {/* Preview */}
+                <div
+                  className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden bg-gray-50"
+                  style={{ backgroundColor: previewColors.primary + '20' }}
+                >
+                  {logoPreview ? (
+                    <Image
+                      src={logoPreview}
+                      alt="Logo preview"
+                      width={80}
+                      height={80}
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <span className="text-3xl">{selectedTheme.emoji}</span>
+                  )}
+                </div>
+
+                <div className="flex-1">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                    onChange={handleLogoChange}
+                    className="hidden"
+                    id="logo-upload"
+                  />
+                  <div className="flex gap-2">
+                    <label
+                      htmlFor="logo-upload"
+                      className="cursor-pointer px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                    >
+                      {logoPreview ? 'Cambiar' : 'Subir logo'}
+                    </label>
+                    {logoPreview && (
+                      <button
+                        type="button"
+                        onClick={removeLogo}
+                        className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                      >
+                        Eliminar
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    JPG, PNG, WebP o SVG. Máx 2MB.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Custom Colors Toggle */}
+            <div className="mb-4">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={useCustomColors}
+                  onChange={(e) => setUseCustomColors(e.target.checked)}
+                  className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm font-medium text-gray-700">
+                  Usar colores personalizados
+                </span>
+              </label>
+              <p className="text-xs text-gray-500 mt-1 ml-8">
+                Si no, se usarán los colores del tema seleccionado
+              </p>
+            </div>
+
+            {/* Color Pickers */}
+            {useCustomColors && (
+              <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
+                <div className="grid grid-cols-3 gap-3">
+                  {/* Primary Color */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Primario
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={formData.customPrimaryColor || selectedTheme.colors.primary}
+                        onChange={(e) => handleChange('customPrimaryColor', e.target.value)}
+                        className="w-10 h-10 rounded cursor-pointer border border-gray-300"
+                      />
+                      <input
+                        type="text"
+                        value={formData.customPrimaryColor || selectedTheme.colors.primary}
+                        onChange={(e) => handleChange('customPrimaryColor', e.target.value)}
+                        placeholder="#000000"
+                        className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Secondary Color */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Secundario
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={formData.customSecondaryColor || selectedTheme.colors.secondary}
+                        onChange={(e) => handleChange('customSecondaryColor', e.target.value)}
+                        className="w-10 h-10 rounded cursor-pointer border border-gray-300"
+                      />
+                      <input
+                        type="text"
+                        value={formData.customSecondaryColor || selectedTheme.colors.secondary}
+                        onChange={(e) => handleChange('customSecondaryColor', e.target.value)}
+                        placeholder="#000000"
+                        className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Accent Color */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Acento
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={formData.customAccentColor || selectedTheme.colors.primary}
+                        onChange={(e) => handleChange('customAccentColor', e.target.value)}
+                        className="w-10 h-10 rounded cursor-pointer border border-gray-300"
+                      />
+                      <input
+                        type="text"
+                        value={formData.customAccentColor || selectedTheme.colors.primary}
+                        onChange={(e) => handleChange('customAccentColor', e.target.value)}
+                        placeholder="#000000"
+                        className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Color Preview */}
+                <div className="mt-3 p-3 rounded-lg" style={{ backgroundColor: previewColors.primary }}>
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center"
+                      style={{ backgroundColor: previewColors.secondary }}
+                    >
+                      {logoPreview ? (
+                        <Image
+                          src={logoPreview}
+                          alt="Logo"
+                          width={32}
+                          height={32}
+                          className="w-8 h-8 object-contain rounded-full"
+                        />
+                      ) : (
+                        <span className="text-white text-lg">{selectedTheme.emoji}</span>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-white font-semibold text-sm">
+                        {formData.name || 'Tu Negocio'}
+                      </p>
+                      <p className="text-white/70 text-xs">Vista previa de colores</p>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex gap-2">
+                    <span
+                      className="px-3 py-1 rounded-full text-xs font-medium"
+                      style={{ backgroundColor: previewColors.accent, color: 'white' }}
+                    >
+                      Botón de acción
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          {/* ========== FIN SECCIÓN DE BRANDING ========== */}
 
           <Input
             label="Contrasena *"

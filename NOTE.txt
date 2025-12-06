@@ -1,0 +1,15 @@
+Links importantes:
+
+  | Recurso         | URL
+                      |
+  |-----------------|------------------------------------------------------------------------
+  --------------------|
+  | GitHub          | https://github.com/founderjourney/digitaliza-unified                   
+                      |
+  | Vercel          | https://digitaliza-unified-mosaiko-labs-projects.vercel.app            
+                      |
+  | Vercel Settings |
+  https://vercel.com/mosaiko-labs-projects/digitaliza-unified/settings/deployment-protection 
+  |
+
+  ---

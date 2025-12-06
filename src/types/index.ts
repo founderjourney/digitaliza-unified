@@ -19,6 +19,10 @@ export interface Restaurant {
   logoUrl?: string
   description?: string
   isActive?: boolean
+  // Custom branding colors
+  customPrimaryColor?: string
+  customSecondaryColor?: string
+  customAccentColor?: string
   createdAt?: Date
   updatedAt?: Date
 }
@@ -33,7 +37,7 @@ export interface MenuItem {
   imageUrl?: string | undefined
   order: number
   restaurantId: string
-  duration?: string
+  duration?: number | string | null
   size?: string
   createdAt?: Date
   updatedAt?: Date

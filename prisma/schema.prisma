@@ -1,4 +1,4 @@
-// prisma/schema.prisma - VERSIÓN SIMPLIFICADA KISS (75 líneas)
+// prisma/schema.prisma - VERSIÓN COMPLETA CON SISTEMA DE CITAS Y PEDIDOS
 
 generator client {
   provider = "prisma-client-js"
@@ -31,6 +31,11 @@ model Restaurant {
   businessMode String   @default("restaurant") // restaurant, services, store, mixed
   hours        String   @default("{}")       // JSON string: {"mon":"09:00-22:00",...}
 
+  // Branding personalizado (override del tema)
+  customPrimaryColor   String?  // Color primario custom (hex)
+  customSecondaryColor String?  // Color secundario custom (hex)
+  customAccentColor    String?  // Color de acento custom (hex)
+
   // Seguridad
   password    String   // Hash bcrypt
 
@@ -46,6 +51,8 @@ model Restaurant {
   sessions     Session[]
   links        Link[]
   reservations Reservation[]
+  appointments Appointment[]
+  orders       Order[]
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -61,9 +68,16 @@ model MenuItem {
   available   Boolean  @default(true)
   order       Int      @default(0)
 
-  // Relación
+  // Campos para servicios (barbería, spa, etc.)
+  duration    Int?     // Duración en minutos (solo para servicios)
+
+  // Relación con Restaurant
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  // Relaciones inversas
+  appointments Appointment[]
+  orderItems   OrderItem[]
 
   // Timestamps
   createdAt   DateTime @default(now())
@@ -115,7 +129,7 @@ model Link {
 }
 
 // ══════════════════════════════════════════════════════════════
-// MODELO 5: RESERVATION (Reservas)
+// MODELO 5: RESERVATION (Reservas de Mesa - Restaurantes)
 // ══════════════════════════════════════════════════════════════
 model Reservation {
   id           String   @id @default(cuid())
@@ -139,4 +153,139 @@ model Reservation {
   @@index([restaurantId])
   @@index([date])
   @@index([status])
+}
+
+// ══════════════════════════════════════════════════════════════
+// MODELO 6: APPOINTMENT (Citas - Servicios: Barbería, Spa, Salón)
+// ══════════════════════════════════════════════════════════════
+model Appointment {
+  id           String   @id @default(cuid())
+
+  // Datos del cliente
+  customerName  String
+  customerPhone String
+  customerEmail String?
+
+  // Datos de la cita
+  date          DateTime  // Fecha de la cita
+  startTime     String    // Hora de inicio "10:00"
+  endTime       String    // Hora de fin "10:30" (calculada por duración)
+  duration      Int       // Duración en minutos
+
+  // Estado
+  status        String    @default("pending") // pending, confirmed, in_progress, completed, cancelled, no_show
+
+  // Notas
+  notes         String?   // Notas del cliente
+  adminNotes    String?   // Notas internas del negocio
+
+  // Relación con el servicio
+  menuItemId    String
+  menuItem      MenuItem  @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  // Relación con el negocio
+  restaurantId  String
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([restaurantId])
+  @@index([menuItemId])
+  @@index([date])
+  @@index([status])
+  @@index([restaurantId, date]) // Índice compuesto para búsquedas de citas por día
+}
+
+// ══════════════════════════════════════════════════════════════
+// MODELO 7: ORDER (Pedidos - Tiendas y Restaurantes)
+// ══════════════════════════════════════════════════════════════
+model Order {
+  id           String   @id @default(cuid())
+
+  // Número de orden legible
+  orderNumber  String   // ORD-001, ORD-002, etc.
+
+  // Datos del cliente
+  customerName  String
+  customerPhone String
+  customerEmail String?
+
+  // Dirección de entrega (solo para delivery)
+  deliveryAddress String?
+  deliveryNotes   String?  // "Edificio azul, 3er piso"
+
+  // Tipo de pedido
+  orderType     String    @default("pickup") // pickup, delivery, dine_in
+
+  // Totales
+  subtotal      Decimal
+  deliveryFee   Decimal   @default(0)
+  tax           Decimal   @default(0)
+  total         Decimal
+
+  // Estado del pedido
+  status        String    @default("pending")
+  // Estados: pending, confirmed, preparing, ready, out_for_delivery, delivered, completed, cancelled
+
+  // Tiempo estimado (minutos)
+  estimatedTime Int?
+
+  // Notas
+  notes         String?   // Notas del cliente
+  adminNotes    String?   // Notas internas
+
+  // Método de pago (informativo)
+  paymentMethod String?   // cash, card, transfer
+
+  // Relación con el negocio
+  restaurantId  String
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  // Relación con items
+  items         OrderItem[]
+
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([restaurantId, orderNumber]) // Número de orden único por negocio
+  @@index([restaurantId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([restaurantId, status]) // Índice compuesto para filtrar pedidos
+}
+
+// ══════════════════════════════════════════════════════════════
+// MODELO 8: ORDERITEM (Items de un Pedido)
+// ══════════════════════════════════════════════════════════════
+model OrderItem {
+  id           String   @id @default(cuid())
+
+  // Cantidad y precio
+  quantity     Int
+  unitPrice    Decimal  // Precio al momento del pedido (puede cambiar después)
+  totalPrice   Decimal  // quantity * unitPrice
+
+  // Notas específicas del item
+  notes        String?  // "Sin cebolla", "Extra queso", etc.
+
+  // Relación con el pedido
+  orderId      String
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  // Relación con el producto/servicio
+  menuItemId   String
+  menuItem     MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  // Snapshot del nombre (por si el producto cambia después)
+  itemName     String
+  itemCategory String?
+
+  // Timestamps
+  createdAt    DateTime @default(now())
+
+  @@index([orderId])
+  @@index([menuItemId])
 }
